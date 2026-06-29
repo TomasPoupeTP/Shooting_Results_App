@@ -58,6 +58,14 @@ FONT_CELL = ("Segoe UI", 9)
 
 CATEGORIES     = ["", "Senior", "Veterán", "Junior", "Žena"]
 CAT_SHORT      = {"Senior":"S","Veterán":"V","Junior":"J","Žena":"Ž","":""}
+DISCIPLINES    = ["Americký TRAP", "Univerzální TRAP", "SKEET", "Speciál"]
+CUSTOM_DISC    = "Vlastní…"
+
+def cat_short(cat):
+    """Krátký kód kategorie; pro vlastní (custom) kategorie vrátí text tak, jak je."""
+    if cat in CAT_SHORT:
+        return CAT_SHORT[cat]
+    return cat or ""
 
 def make_btn(parent, text, cmd, style="primary", width=14):
     m = {"primary":(ACCENT,TEXT_PRIMARY),"secondary":(BG_HOVER,TEXT_PRIMARY),
@@ -116,6 +124,7 @@ class ShootingApp(tk.Tk):
         self.has_finale       = tk.BooleanVar(value=False)
         self.use_categories   = tk.BooleanVar(value=False)
         self.discipline       = tk.StringVar(value="Americký TRAP")
+        self.custom_discipline = tk.StringVar(value="")
         self.max_score        = tk.IntVar(value=25)
 
         self.shooters_data    = []
@@ -230,6 +239,7 @@ class ShootingApp(tk.Tk):
             "has_finale":        self.has_finale.get(),
             "use_categories":    self.use_categories.get(),
             "discipline":        self.discipline.get(),
+            "custom_discipline": self.custom_discipline.get(),
             "max_score":         self.max_score.get(),
             "shooters_data":     self.shooters_data,
             "sorted_results":    self.sorted_results,
@@ -285,6 +295,24 @@ class ShootingApp(tk.Tk):
         except Exception as e:
             messagebox.showerror("Chyba uložení", str(e))
 
+    # ── Discipline / category helpers ─────────────────────────────────────────
+    def _discipline_text(self):
+        """Vrátí efektivní název disciplíny (vlastní text, pokud je zvoleno Vlastní…)."""
+        d = self.discipline.get()
+        if d == CUSTOM_DISC:
+            return self.custom_discipline.get().strip() or "Vlastní disciplína"
+        return d
+
+    def _category_values(self):
+        """Seznam kategorií pro výběr: základní + jakékoli vlastní již použité."""
+        vals = list(CATEGORIES[1:])
+        seen = set(vals)
+        for d in (self.shooters_data or []):
+            c = (d.get("category", "") or "").strip()
+            if c and c not in seen:
+                seen.add(c); vals.append(c)
+        return vals
+
     # ══════════════════════════════════════════════════════════════════════════
     # HOME
     # ══════════════════════════════════════════════════════════════════════════
@@ -338,10 +366,21 @@ class ShootingApp(tk.Tk):
 
         def _disc(p):
             cb = ttk.Combobox(p, textvariable=self.discipline,
-                              values=["Americký TRAP","Univerzální TRAP","SKEET","Speciál"],
+                              values=DISCIPLINES + [CUSTOM_DISC],
                               state="readonly", width=20, font=FONT_BODY,
                               style="Dark.TCombobox")
             cb.pack(side="left")
+            custom_e = tk.Entry(p, textvariable=self.custom_discipline, width=22,
+                                bg=BG_INPUT, fg=TEXT_PRIMARY, insertbackground=TEXT_PRIMARY,
+                                relief="flat", bd=0, font=FONT_BODY,
+                                highlightthickness=1, highlightbackground=BORDER, highlightcolor=ACCENT)
+            def _toggle_custom(*_):
+                if self.discipline.get() == CUSTOM_DISC:
+                    custom_e.pack(side="left", padx=(8,0))
+                else:
+                    custom_e.pack_forget()
+            cb.bind("<<ComboboxSelected>>", _toggle_custom)
+            _toggle_custom()
         row("Disciplína:", _disc)
 
         def _maxscore(p):
@@ -355,7 +394,7 @@ class ShootingApp(tk.Tk):
         row("Max. terčů v položce:", _maxscore)
 
         def _opts(p):
-            tk.Checkbutton(p, variable=self.has_finale, text="Bude finále",
+            tk.Checkbutton(p, variable=self.has_finale, text="Finále",
                            bg=BG_CARD, fg=TEXT_PRIMARY, selectcolor=BG_INPUT,
                            activebackground=BG_CARD, font=FONT_BODY).pack(side="left")
         row("Možnosti:", _opts)
@@ -700,7 +739,12 @@ class ShootingApp(tk.Tk):
             self.num_items.set(data.get("num_items",3))
             self.has_finale.set(data.get("has_finale",False))
             self.use_categories.set(data.get("use_categories",False))
-            self.discipline.set(data.get("discipline","Americký TRAP"))
+            _disc = data.get("discipline","Americký TRAP")
+            _cust = data.get("custom_discipline","")
+            if _disc not in DISCIPLINES and _disc != CUSTOM_DISC:
+                _cust = _disc; _disc = CUSTOM_DISC
+            self.discipline.set(_disc)
+            self.custom_discipline.set(_cust)
             self.max_score.set(data.get("max_score",25))
             self.shooters_data    = data.get("shooters_data",[])
             self.sorted_results   = data.get("sorted_results",[])
@@ -718,7 +762,7 @@ class ShootingApp(tk.Tk):
         topbar.pack(fill="x")
         tk.Label(topbar, text=f"🎯  {self.competition_name.get()}",
                  font=("Georgia",13,"bold"), bg=BG_CARD, fg=ACCENT).pack(side="left",padx=16,pady=8)
-        tk.Label(topbar, text=f"│  {self.discipline.get()}  │  Max: {self.max_score.get()} terčů",
+        tk.Label(topbar, text=f"│  {self._discipline_text()}  │  Max: {self.max_score.get()} terčů",
                  font=FONT_SM, bg=BG_CARD, fg=TEXT_MUTED).pack(side="left",padx=4,pady=8)
 
         def _toggle_cat():
@@ -736,6 +780,7 @@ class ShootingApp(tk.Tk):
             ("+ Položka", self._add_item,  "secondary",10),
             ("- Položka", self._rem_item,  "secondary",10),
             ("💾 Uložit", self._save_data, "success",  10),
+            ("🖥 Prezentace", self._show_presentation,"secondary",12),
             ("Seřadit →", self._go_to_sorted,"primary",10),
             ("← Zpět",    self._show_home, "secondary", 8),
         ]:
@@ -804,10 +849,11 @@ class ShootingApp(tk.Tk):
             cat_var = tk.StringVar(value=ex.get("category",""))
             self._entry_vars[(r,"category")] = cat_var
             opt = ttk.Combobox(inner, textvariable=cat_var,
-                               values=CATEGORIES[1:], state="readonly",
+                               values=self._category_values(), state="normal",
                                width=col_widths[col_off]-2, font=FONT_CELL,
                                style="Dark.TCombobox")
             opt.bind("<<ComboboxSelected>>", lambda _: self._autosave())
+            opt.bind("<FocusOut>", lambda _: self._autosave())
             opt.grid(row=r+1,column=col_off,padx=1,pady=1,sticky="nsew")
             col_off+=1
 
@@ -890,6 +936,274 @@ class ShootingApp(tk.Tk):
             self.num_items.set(ni-1); self._build_entry_grid()
 
     # ══════════════════════════════════════════════════════════════════════════
+    # PREZENTACE  (samostatné okno pro druhý monitor – průběžné auto-řazení a scroll)
+    # ══════════════════════════════════════════════════════════════════════════
+    def _pres_alive(self):
+        win = getattr(self, "_pres_win", None)
+        try:
+            return win is not None and win.winfo_exists()
+        except Exception:
+            return False
+
+    def _show_presentation(self):
+        # Sebrání aktuálních dat ze zápisu před otevřením
+        if hasattr(self, "_entry_vars") and self._entry_vars:
+            try: self.shooters_data = self._collect_entry_data()
+            except Exception: pass
+
+        # Pokud už okno běží, jen ho vytáhneme dopředu
+        if self._pres_alive():
+            try:
+                self._pres_win.deiconify(); self._pres_win.lift(); self._pres_win.focus_force()
+            except Exception: pass
+            return
+
+        win = tk.Toplevel(self)
+        self._pres_win = win
+        win.title(f"Prezentace – {self.competition_name.get()}")
+        win.configure(bg=BG_DARK)
+        win.geometry("960x720")
+        win.minsize(600, 400)
+        win.protocol("WM_DELETE_WINDOW", self._close_presentation)
+
+        header = tk.Frame(win, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER)
+        header.pack(fill="x")
+        tk.Label(header, text=f"🎯  {self.competition_name.get()}",
+                 font=("Georgia", 26, "bold"), bg=BG_CARD, fg=ACCENT).pack(pady=(12, 2))
+        tk.Label(header, text=f"{self._discipline_text()}  •  průběžné výsledky",
+                 font=("Segoe UI", 14), bg=BG_CARD, fg=TEXT_MUTED).pack(pady=(0, 12))
+
+        body = tk.Frame(win, bg=BG_DARK)
+        body.pack(fill="both", expand=True)
+        canvas = tk.Canvas(body, bg=BG_DARK, highlightthickness=0)
+        canvas.pack(fill="both", expand=True)
+        inner = tk.Frame(canvas, bg=BG_DARK)
+        win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(win_id, width=e.width))
+
+        self._pres_canvas    = canvas
+        self._pres_inner     = inner
+        self._pres_scroll_pos = 0.0
+        self._pres_scroll_dir = 1
+        self._pres_pause      = 30
+        self._pres_speed      = 0.0035
+        self._pres_last_sig   = None
+
+        self._pres_update_loop()
+        self._pres_scroll_loop()
+
+    def _pres_current_data(self):
+        ni = self.num_items.get()
+        if hasattr(self, "_entry_vars") and self._entry_vars:
+            try: data = self._collect_entry_data()
+            except Exception: data = list(self.shooters_data)
+        else:
+            data = list(self.shooters_data)
+        data = [d for d in data if (d.get("surname") or d.get("name"))]
+        return self._sort_shooters(data, ni)
+
+    def _pres_signature(self, data):
+        ni = self.num_items.get()
+        return tuple((
+            d.get("surname", ""), d.get("name", ""), d.get("category", ""),
+            round(float(d.get("total", 0) or 0), 4),
+            tuple(d.get(f"item{i}_score", "") for i in range(1, ni + 1)),
+        ) for d in data) + (ni, self.use_categories.get())
+
+    def _pres_update_loop(self):
+        if not self._pres_alive():
+            return
+        try:
+            data = self._pres_current_data()
+            sig = self._pres_signature(data)
+            empty = (not self._pres_inner.winfo_children())
+            if sig != self._pres_last_sig or empty:
+                self._pres_last_sig = sig
+                self._pres_build(data)
+        except Exception:
+            pass
+        self._pres_update_job = self.after(1000, self._pres_update_loop)
+
+    def _pres_scroll_loop(self):
+        if not self._pres_alive():
+            return
+        try:
+            canvas = self._pres_canvas
+            bbox = canvas.bbox("all")
+            view_h = canvas.winfo_height()
+            content_h = (bbox[3] - bbox[1]) if bbox else 0
+            # Posouvej (tam a zpět) jen pokud se obsah nevejde do okna
+            if content_h > view_h + 4 and view_h > 1:
+                if self._pres_pause > 0:
+                    self._pres_pause -= 1
+                else:
+                    self._pres_scroll_pos += self._pres_scroll_dir * self._pres_speed
+                    if self._pres_scroll_pos >= 1.0:
+                        self._pres_scroll_pos = 1.0; self._pres_scroll_dir = -1; self._pres_pause = 35
+                    elif self._pres_scroll_pos <= 0.0:
+                        self._pres_scroll_pos = 0.0; self._pres_scroll_dir = 1; self._pres_pause = 35
+                    canvas.yview_moveto(self._pres_scroll_pos)
+            else:
+                canvas.yview_moveto(0.0)
+                self._pres_scroll_pos = 0.0
+        except Exception:
+            pass
+        self._pres_scroll_job = self.after(40, self._pres_scroll_loop)
+
+    def _pres_build(self, data):
+        inner = self._pres_inner
+        for w in inner.winfo_children():
+            w.destroy()
+        ni = self.num_items.get()
+        use_cat = self.use_categories.get()
+
+        F_HDR = ("Segoe UI", 14, "bold")
+        F_ROW = ("Segoe UI", 17, "bold")
+        F_SUM = ("Segoe UI", 19, "bold")
+
+        col_w = [4, 26]
+        if use_cat: col_w.append(7)
+        col_w += [8] * ni
+        col_w.append(9)
+        sum_col = len(col_w) - 1
+
+        def cell(text, row, col, fg, bg, font, anchor="center"):
+            tk.Label(inner, text=text, width=col_w[col], font=font, bg=bg, fg=fg,
+                     anchor=anchor, padx=8, pady=8,
+                     highlightthickness=1, highlightbackground=BORDER
+                     ).grid(row=row, column=col, sticky="nsew", padx=1, pady=1)
+
+        # Hlavička
+        c = 0
+        cell("#", 0, c, ACCENT, BG_CARD, F_HDR); c += 1
+        cell("Jméno", 0, c, ACCENT, BG_CARD, F_HDR, anchor="w"); c += 1
+        if use_cat:
+            cell("Kat.", 0, c, ACCENT, BG_CARD, F_HDR); c += 1
+        for i in range(1, ni + 1):
+            cell(f"Pol.{i}", 0, c, ACCENT, BG_CARD, F_HDR); c += 1
+        cell("Součet", 0, sum_col, ACCENT, BG_CARD, F_HDR)
+
+        medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+        for ri, d in enumerate(data):
+            rank = ri + 1
+            rb = BG_CARD if ri % 2 == 0 else BG_INPUT
+            if rank <= 3:   rfg = GOLD
+            elif rank <= 6: rfg = GREEN_ACCENT
+            else:           rfg = TEXT_MUTED
+            c = 0
+            cell(medals.get(rank, str(rank)), rank, c, rfg, rb, F_ROW); c += 1
+            name = (d.get("surname", "") + " " + d.get("name", "")).strip()
+            cell(name, rank, c, TEXT_PRIMARY, rb, F_ROW, anchor="w"); c += 1
+            if use_cat:
+                cell(cat_short(d.get("category", "")), rank, c, TEXT_MUTED, rb, F_ROW); c += 1
+            for i in range(1, ni + 1):
+                cell(self._cs(d.get(f"item{i}_score", "")), rank, c, TEXT_PRIMARY, rb, F_ROW); c += 1
+            cell(self._cs(d.get("total", 0)), rank, sum_col, GOLD, rb, F_SUM)
+
+        if not data:
+            tk.Label(inner, text="Zatím nejsou zadáni žádní střelci.",
+                     font=("Segoe UI", 16), bg=BG_DARK, fg=TEXT_MUTED
+                     ).grid(row=1, column=0, columnspan=max(1, sum_col + 1), padx=20, pady=20)
+
+        inner.grid_columnconfigure(1, weight=1)
+
+    def _close_presentation(self):
+        for attr in ("_pres_update_job", "_pres_scroll_job"):
+            job = getattr(self, attr, None)
+            if job:
+                try: self.after_cancel(job)
+                except Exception: pass
+                setattr(self, attr, None)
+        win = getattr(self, "_pres_win", None)
+        if win is not None:
+            try: win.destroy()
+            except Exception: pass
+        self._pres_win = None
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # TOP STATISTIKA  (střelci s plnou položkou = maximum terčů)
+    # ══════════════════════════════════════════════════════════════════════════
+    def _show_top_stats(self):
+        # Sebrání aktuálních dat (pokud jsme v zápisu)
+        if hasattr(self, "_entry_vars") and self._entry_vars:
+            try: self.shooters_data = self._collect_entry_data()
+            except Exception: pass
+
+        ni = self.num_items.get()
+        try: mx = float(self.max_score.get())
+        except Exception: mx = None
+        src = self.sorted_results if self.sorted_results else self.shooters_data
+
+        winners = []
+        if mx is not None:
+            for d in src:
+                if not (d.get("surname") or d.get("name")):
+                    continue
+                hits = []
+                for i in range(1, ni + 1):
+                    raw = d.get(f"item{i}_score", "")
+                    if raw is None or str(raw).strip() == "":
+                        continue
+                    try: sc = float(raw)
+                    except (ValueError, TypeError): continue
+                    if sc == mx:
+                        hits.append(i)
+                if hits:
+                    winners.append((d, len(hits), hits))
+        winners.sort(key=lambda w: (-w[1], -float(w[0].get("total", 0) or 0)))
+
+        win = tk.Toplevel(self)
+        win.title(f"Top Statistika – {self.competition_name.get()}")
+        win.configure(bg=BG_DARK)
+        win.geometry("740x620")
+        win.minsize(520, 360)
+
+        tk.Frame(win, bg=ACCENT, height=4).pack(fill="x")
+        head = tk.Frame(win, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER)
+        head.pack(fill="x")
+        tk.Label(head, text="📊  Top Statistika", font=("Georgia", 18, "bold"),
+                 bg=BG_CARD, fg=ACCENT).pack(anchor="w", padx=16, pady=(10, 2))
+        tk.Label(head, text=f"Střelci s plnou položkou (maximum {self.max_score.get()} terčů) – alespoň jednou",
+                 font=FONT_BODY, bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w", padx=16, pady=(0, 4))
+        tk.Label(head, text=f"Celkem střelců s plnou položkou: {len(winners)}",
+                 font=FONT_SM, bg=BG_CARD, fg=GREEN_ACCENT).pack(anchor="w", padx=16, pady=(0, 10))
+
+        footer = tk.Frame(win, bg=BG_DARK); footer.pack(side="bottom", fill="x")
+        make_btn(footer, "Zavřít", win.destroy, "secondary", 12).pack(pady=8)
+
+        body = tk.Frame(win, bg=BG_DARK)
+        body.pack(fill="both", expand=True, padx=10, pady=10)
+        inner = scrollable_canvas(body)
+
+        if not winners:
+            tk.Label(inner, text="Zatím žádný střelec nedosáhl plné položky.",
+                     font=FONT_BODY, bg=BG_DARK, fg=TEXT_MUTED).grid(row=0, column=0, padx=20, pady=20)
+            return
+
+        hdrs   = ["Příjmení", "Jméno", "Kat.", "Plných pol.", "Které položky", "Součet"]
+        widths = [16,          14,      6,      11,            20,              9]
+        for c, (h, w) in enumerate(zip(hdrs, widths)):
+            cell_label(inner, text=h, width=w, bg=BG_CARD, fg=ACCENT, bold=True
+                       ).grid(row=0, column=c, padx=1, pady=1, sticky="nsew")
+
+        best = winners[0][1]
+        for ri, (d, cnt, hits) in enumerate(winners):
+            rb = BG_CARD if ri % 2 == 0 else BG_INPUT
+            cnt_fg = GOLD if cnt == best else GREEN_ACCENT
+            cells = [
+                (d.get("surname", ""), TEXT_PRIMARY, False),
+                (d.get("name", ""),    TEXT_MUTED,   False),
+                (cat_short(d.get("category", "")), TEXT_MUTED, False),
+                (f"{cnt}×",            cnt_fg,       True),
+                (", ".join(f"Pol.{i}" for i in hits), TEXT_PRIMARY, False),
+                (self._cs(d.get("total", 0)), GOLD,  True),
+            ]
+            for c, (txt, fg, bold) in enumerate(cells):
+                cell_label(inner, text=txt, width=widths[c], bg=rb, fg=fg, bold=bold
+                           ).grid(row=ri + 1, column=c, padx=1, pady=1, sticky="nsew")
+
+    # ══════════════════════════════════════════════════════════════════════════
     # SORTING LOGIC
     # ══════════════════════════════════════════════════════════════════════════
     def _sort_key(self, d, ni):
@@ -955,6 +1269,7 @@ class ShootingApp(tk.Tk):
             make_btn(bb,"Finále →",            self._go_to_finale,    "primary",   10).pack(side="left",padx=2)
         make_btn(bb,"💾 Uložit",   self._save_data,        "success",  10).pack(side="left",padx=2)
         make_btn(bb,"🖨 Tisk PDF", self._print_sorted_pdf, "success",  12).pack(side="left",padx=2)
+        make_btn(bb,"📊 Top Statistika", self._show_top_stats, "secondary", 15).pack(side="left",padx=2)
         make_btn(bb,"← Zpět",      self._show_entry,       "secondary", 8).pack(side="left",padx=2)
 
         wrap = tk.Frame(f, bg=BG_DARK); wrap.pack(fill="both",expand=True,padx=8,pady=8)
@@ -987,7 +1302,7 @@ class ShootingApp(tk.Tk):
             lbl(medals.get(rank,str(rank)),col_off,rfg,bold=True); col_off+=1
             lbl(d.get("surname",""),col_off); col_off+=1
             lbl(d.get("name",""),  col_off,TEXT_MUTED); col_off+=1
-            lbl(CAT_SHORT.get(d.get("category",""),""),col_off,TEXT_MUTED); col_off+=1
+            lbl(cat_short(d.get("category","")),col_off,TEXT_MUTED); col_off+=1
             lbl(str(d.get("start_num", "")), col_off, GOLD); col_off+=1
             for i in range(1,ni+1):
                 lbl(d.get(f"item{i}_score",""),col_off+(i-1)*2)
@@ -1123,7 +1438,7 @@ class ShootingApp(tk.Tk):
             lbl(medals.get(rank,str(rank)),co,rfg,bold=True); co+=1
             lbl(d.get("surname",""),co); co+=1
             lbl(d.get("name",""),  co,TEXT_MUTED); co+=1
-            lbl(CAT_SHORT.get(d.get("category",""),""),co,TEXT_MUTED); co+=1
+            lbl(cat_short(d.get("category","")),co,TEXT_MUTED); co+=1
             for i in range(1,ni+1):
                 lbl(d.get(f"item{i}_score",""),co+(i-1)*2)
                 lbl(d.get(f"item{i}_fault",""),co+(i-1)*2+1,TEXT_MUTED)
@@ -1262,7 +1577,7 @@ class ShootingApp(tk.Tk):
         ts=ParagraphStyle("t",fontSize=14,alignment=TA_CENTER,fontName=PDF_FONT_BOLD,spaceAfter=2)
         ss=ParagraphStyle("s",fontSize=9, alignment=TA_CENTER,fontName=PDF_FONT,spaceAfter=10)
         t="Shooting Results App"+(f"  –  {extra}" if extra else "")
-        disc_line = f"{self.discipline.get()}  •  Max. {self.max_score.get()} terčů/položku  •  {datetime.now().strftime('%d.%m.%Y')}"
+        disc_line = f"{self._discipline_text()}  •  Max. {self.max_score.get()} terčů/položku  •  {datetime.now().strftime('%d.%m.%Y')}"
         return [Paragraph(t,ts),Paragraph(self.competition_name.get(),ts),
                 Paragraph(disc_line,ss)]
 
@@ -1277,7 +1592,7 @@ class ShootingApp(tk.Tk):
         rows = [hdrs]
         for ri, d in enumerate(data):
             r = [str(ri+1), d.get("surname",""), d.get("name",""),
-                 CAT_SHORT.get(d.get("category",""),"")]
+                 cat_short(d.get("category",""))]
             for i in range(1, ni+1):
                 r.append(self._cs(d.get(f"item{i}_score","")))
             r.append(self._cs(d.get("total", 0)))
