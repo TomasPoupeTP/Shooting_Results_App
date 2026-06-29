@@ -56,8 +56,8 @@ FONT_BODY = ("Segoe UI", 10)
 FONT_SM   = ("Segoe UI", 9)
 FONT_CELL = ("Segoe UI", 9)
 
-CATEGORIES     = ["", "Senior", "Veterán", "Junior", "Žena"]
-CAT_SHORT      = {"Senior":"S","Veterán":"V","Junior":"J","Žena":"Ž","":""}
+CATEGORIES     = ["", "Senior", "Veterán", "Junior", "Žena", "Člen", "Host"]
+CAT_SHORT      = {"Senior":"S","Veterán":"V","Junior":"J","Žena":"Ž","Člen":"Č","Host":"H","":""}
 DISCIPLINES    = ["Americký TRAP", "Univerzální TRAP", "SKEET", "Speciál"]
 CUSTOM_DISC    = "Vlastní…"
 
@@ -984,11 +984,13 @@ class ShootingApp(tk.Tk):
 
         self._pres_canvas    = canvas
         self._pres_inner     = inner
-        self._pres_scroll_pos = 0.0
-        self._pres_scroll_dir = 1
-        self._pres_pause      = 30
-        self._pres_speed      = 0.0035
-        self._pres_last_sig   = None
+        self._pres_scroll_pos   = 0.0
+        self._pres_pause        = 24     # úvodní pauza nahoře
+        self._pres_px           = 1.2    # pixelů na tik (pomalé, plynulé)
+        self._pres_interval     = 50     # ms mezi tiky
+        self._pres_bottom_pause = 70     # pauza dole (~3,5 s) než skočí nahoru
+        self._pres_top_pause    = 24     # pauza nahoře (~1,2 s) po skoku
+        self._pres_last_sig     = None
 
         self._pres_update_loop()
         self._pres_scroll_loop()
@@ -1033,23 +1035,29 @@ class ShootingApp(tk.Tk):
             bbox = canvas.bbox("all")
             view_h = canvas.winfo_height()
             content_h = (bbox[3] - bbox[1]) if bbox else 0
-            # Posouvej (tam a zpět) jen pokud se obsah nevejde do okna
+            # Plynulé posouvání dolů; na konci pauza a skok zpět nahoru (stále dokola)
             if content_h > view_h + 4 and view_h > 1:
                 if self._pres_pause > 0:
                     self._pres_pause -= 1
+                    # konec pauzy u spodního okraje → skok zpět na začátek
+                    if self._pres_pause == 0 and self._pres_scroll_pos >= 1.0:
+                        self._pres_scroll_pos = 0.0
+                        canvas.yview_moveto(0.0)
+                        self._pres_pause = self._pres_top_pause
                 else:
-                    self._pres_scroll_pos += self._pres_scroll_dir * self._pres_speed
+                    self._pres_scroll_pos += self._pres_px / max(content_h - view_h, 1)
                     if self._pres_scroll_pos >= 1.0:
-                        self._pres_scroll_pos = 1.0; self._pres_scroll_dir = -1; self._pres_pause = 35
-                    elif self._pres_scroll_pos <= 0.0:
-                        self._pres_scroll_pos = 0.0; self._pres_scroll_dir = 1; self._pres_pause = 35
-                    canvas.yview_moveto(self._pres_scroll_pos)
+                        self._pres_scroll_pos = 1.0
+                        canvas.yview_moveto(1.0)
+                        self._pres_pause = self._pres_bottom_pause
+                    else:
+                        canvas.yview_moveto(self._pres_scroll_pos)
             else:
                 canvas.yview_moveto(0.0)
                 self._pres_scroll_pos = 0.0
         except Exception:
             pass
-        self._pres_scroll_job = self.after(40, self._pres_scroll_loop)
+        self._pres_scroll_job = self.after(self._pres_interval, self._pres_scroll_loop)
 
     def _pres_build(self, data):
         inner = self._pres_inner
