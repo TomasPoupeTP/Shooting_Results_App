@@ -689,17 +689,34 @@ class ShootingApp(tk.Tk):
                 if not self.lottery_list:
                     messagebox.showwarning("Chyba", "Nejdřív přidej střelce")
                     return
-                sorted_list = sorted(self.lottery_list, key=lambda d: int(d.get("start_num", 0)))
-                self.num_shooters.set(len(sorted_list))
-                self.shooters_data = [{"surname": d["surname"], "name": d["name"], 
-                                       "start_num": d.get("start_num", i+1), "los": d.get("los", 0),
-                                       "category": "", "total": 0}
-                                      for i, d in enumerate(sorted_list)]
-                for d in self.shooters_data:
-                    for i in range(1, self.num_items.get() + 1):
-                        d[f"item{i}_score"] = ""
-                        d[f"item{i}_fault"] = ""
-                messagebox.showinfo("Hotovo", f"{len(sorted_list)} střelců vloženo do zápisu")
+                def _sn(d):
+                    try: return int(str(d.get("start_num", 0)).strip() or 0)
+                    except Exception: return 10**9
+                sorted_list = sorted(self.lottery_list, key=_sn)
+                ni = self.num_items.get()
+                data = []
+                for i, d in enumerate(sorted_list):
+                    row = {"surname": d.get("surname", ""), "name": d.get("name", ""),
+                           "start_num": d.get("start_num", i + 1), "los": d.get("los", 0),
+                           "category": "", "total": 0}
+                    for k in range(1, ni + 1):
+                        row[f"item{k}_score"] = ""; row[f"item{k}_fault"] = ""
+                    data.append(row)
+                # prázdná místa na konec – doplnění do celé rundy po 6 (pro pozdější dopsání)
+                nums = [_sn(d) for d in sorted_list if str(d.get("start_num", "")).strip().isdigit()]
+                nxt = (max(nums) + 1) if nums else (len(sorted_list) + 1)
+                pad = (-len(sorted_list)) % 6
+                for j in range(pad):
+                    row = {"surname": "", "name": "", "start_num": str(nxt + j),
+                           "los": 0, "category": "", "total": 0}
+                    for k in range(1, ni + 1):
+                        row[f"item{k}_score"] = ""; row[f"item{k}_fault"] = ""
+                    data.append(row)
+                self.shooters_data = data
+                self.num_shooters.set(len(data))
+                messagebox.showinfo("Hotovo",
+                    f"{len(sorted_list)} střelců vloženo do zápisu"
+                    + (f" (+ {pad} prázdných míst)" if pad else ""))
                 self._show_entry()
             except Exception as e:
                 messagebox.showerror("Chyba", f"Chyba při vložení do zápisu: {str(e)}")
@@ -907,6 +924,36 @@ class ShootingApp(tk.Tk):
         ]))
         return t
 
+    def _render_sheets_pdf(self, path, rounds, ni, mx, title_for_round):
+        """Společné vykreslení položkových listů (A4 naležato, 1 runda = 1 strana)."""
+        page = landscape(A4)
+        doc = SimpleDocTemplate(path, pagesize=page,
+                                leftMargin=1.0*cm, rightMargin=1.0*cm,
+                                topMargin=1.0*cm, bottomMargin=0.8*cm)
+        usable_w = page[0] - 2.0*cm
+        w_idx, w_sum, w_tot = 0.8*cm, 1.4*cm, 1.5*cm
+        box_w = max((usable_w - w_idx - w_sum - w_tot) / mx, 0.30*cm)
+        col_widths = [w_idx] + [box_w]*mx + [w_sum, w_tot]
+        ncols = mx + 3
+
+        title_style = ParagraphStyle("rt", fontName=PDF_FONT_BOLD, fontSize=14,
+                                     alignment=TA_LEFT, textColor=colors.black, spaceAfter=4)
+        name_style  = ParagraphStyle("nm", fontName=PDF_FONT_BOLD, fontSize=10,
+                                     alignment=TA_LEFT, textColor=colors.black)
+        hdr_style   = ParagraphStyle("hd", fontName=PDF_FONT, fontSize=6.5,
+                                     alignment=TA_CENTER, textColor=colors.black, leading=7)
+
+        story = []
+        for r_no, slots in enumerate(rounds, 1):
+            story.append(Paragraph(title_for_round(r_no), title_style))
+            for slot in slots:
+                story.append(self._item_sheet_table(slot, ni, mx, col_widths, ncols,
+                                                    name_style, hdr_style))
+                story.append(Spacer(1, 0.18*cm))
+            if r_no < len(rounds):
+                story.append(PageBreak())
+        doc.build(story)
+
     def _generate_item_sheets_pdf(self, round_sizes, extra_pages=0):
         if not REPORTLAB_AVAILABLE:
             messagebox.showerror("Chyba", "pip install reportlab"); return
@@ -915,39 +962,92 @@ class ShootingApp(tk.Tk):
         try: mx = int(self.max_score.get())
         except Exception: mx = 25
         mx = max(1, min(mx, 60))            # rozumný limit pro tisk na šířku
-
+        comp = self.competition_name.get()
         path = self._save_path("pdf", "polozkove_listy")
         try:
-            page = landscape(A4)
-            doc = SimpleDocTemplate(path, pagesize=page,
-                                    leftMargin=1.0*cm, rightMargin=1.0*cm,
-                                    topMargin=1.0*cm, bottomMargin=0.8*cm)
-            usable_w = page[0] - 2.0*cm
-            w_idx, w_sum, w_tot = 0.8*cm, 1.4*cm, 1.5*cm
-            box_w = max((usable_w - w_idx - w_sum - w_tot) / mx, 0.30*cm)
-            col_widths = [w_idx] + [box_w]*mx + [w_sum, w_tot]
-            ncols = mx + 3
-
-            comp = self.competition_name.get()
-            title_style = ParagraphStyle("rt", fontName=PDF_FONT_BOLD, fontSize=14,
-                                         alignment=TA_LEFT, textColor=colors.black, spaceAfter=4)
-            name_style  = ParagraphStyle("nm", fontName=PDF_FONT_BOLD, fontSize=10,
-                                         alignment=TA_LEFT, textColor=colors.black)
-            hdr_style   = ParagraphStyle("hd", fontName=PDF_FONT, fontSize=6.5,
-                                         alignment=TA_CENTER, textColor=colors.black, leading=7)
-
-            story = []
-            for r_no, slots in enumerate(rounds, 1):
-                story.append(Paragraph(f"Runda {r_no} – {comp}", title_style))
-                for slot in slots:
-                    story.append(self._item_sheet_table(slot, ni, mx, col_widths, ncols,
-                                                        name_style, hdr_style))
-                    story.append(Spacer(1, 0.18*cm))
-                if r_no < len(rounds):
-                    story.append(PageBreak())
-
-            doc.build(story)
+            self._render_sheets_pdf(path, rounds, ni, mx, lambda r: f"Runda {r} – {comp}")
             self._toast("PDF položkových listů uloženo ✔")
+            if messagebox.askyesno("Otevřít", f"PDF uloženo do:\n{path}\n\nChceš ho hned otevřít?"):
+                os.startfile(path) if hasattr(os, "startfile") else os.system(f'xdg-open "{path}"')
+        except Exception as e:
+            messagebox.showerror("Chyba tisku PDF", str(e))
+
+    # ── Položkový list finále (vždy jedna runda) ──────────────────────────────
+    def _show_finale_sheet_dialog(self):
+        if not REPORTLAB_AVAILABLE:
+            messagebox.showerror("Chyba", "Není nainstalována knihovna ReportLab (pip install reportlab)"); return
+        if not self.finale_finalists:
+            messagebox.showwarning("Chyba", "Nejdřív musí být určeni finalisté."); return
+
+        win = tk.Toplevel(self)
+        win.title("Položkový list finále – nastavení")
+        win.configure(bg=BG_DARK); win.geometry("480x320")
+        win.transient(self)
+        try: win.grab_set()
+        except Exception: pass
+
+        tk.Frame(win, bg=ACCENT, height=4).pack(fill="x")
+        tk.Label(win, text="🎯  Položkový list finále", font=("Georgia", 16, "bold"),
+                 bg=BG_DARK, fg=ACCENT).pack(anchor="w", padx=18, pady=(12, 0))
+        tk.Label(win, text=f"Finalistů: {len(self.finale_finalists)}   •   vždy jedna runda",
+                 font=FONT_SM, bg=BG_DARK, fg=TEXT_MUTED).pack(anchor="w", padx=18, pady=(2, 8))
+
+        card = tk.Frame(win, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER)
+        card.pack(fill="x", padx=18, pady=4)
+        inner = tk.Frame(card, bg=BG_CARD); inner.pack(padx=16, pady=14, fill="x")
+
+        targets_var = tk.IntVar(value=self.max_score.get())
+        order_var   = tk.StringVar(value="od1")
+
+        r1 = tk.Frame(inner, bg=BG_CARD); r1.pack(fill="x", pady=4)
+        tk.Label(r1, text="Počet terčů pro finále:", bg=BG_CARD, fg=TEXT_PRIMARY,
+                 font=FONT_BODY).pack(side="left")
+        tk.Spinbox(r1, textvariable=targets_var, from_=1, to=60, width=5,
+                   bg=BG_INPUT, fg=TEXT_PRIMARY, relief="flat", bd=0, font=FONT_BODY,
+                   highlightthickness=1, highlightbackground=BORDER, buttonbackground=BG_HOVER
+                   ).pack(side="left", padx=(8, 0))
+
+        tk.Label(inner, text="Druh zápisu finále:", bg=BG_CARD, fg=TEXT_PRIMARY,
+                 font=FONT_BODY).pack(anchor="w", pady=(12, 2))
+        tk.Radiobutton(inner, text="Od 1 – nejlepší na start č. 1", variable=order_var, value="od1",
+                       bg=BG_CARD, fg=TEXT_PRIMARY, selectcolor=BG_INPUT, activebackground=BG_CARD,
+                       font=FONT_BODY, anchor="w").pack(anchor="w")
+        tk.Radiobutton(inner, text="Od 6 – nejhorší ze šestice na start č. 1 (pozpátku)",
+                       variable=order_var, value="od6",
+                       bg=BG_CARD, fg=TEXT_PRIMARY, selectcolor=BG_INPUT, activebackground=BG_CARD,
+                       font=FONT_BODY, anchor="w").pack(anchor="w")
+
+        bf = tk.Frame(win, bg=BG_DARK); bf.pack(side="bottom", fill="x", pady=10)
+        def _go():
+            t  = max(1, min(int(targets_var.get() or 1), 60))
+            om = order_var.get()
+            try: win.grab_release()
+            except Exception: pass
+            win.destroy()
+            self._generate_finale_sheet_pdf(t, om)
+        make_btn(bf, "🖨️ Generovat PDF", _go, "primary", 18).pack(side="left", padx=(18, 6))
+        make_btn(bf, "Zrušit", win.destroy, "secondary", 10).pack(side="left", padx=2)
+
+    def _generate_finale_sheet_pdf(self, targets, order_mode):
+        if not REPORTLAB_AVAILABLE:
+            messagebox.showerror("Chyba", "pip install reportlab"); return
+        finalists = list(self.finale_finalists)
+        if order_mode == "od6":                       # nejhorší ze šestice na start č. 1
+            finalists = list(reversed(finalists))
+        slots = []
+        for i, d in enumerate(finalists, 1):
+            slots.append({"start": str(i),
+                          "name": (d.get("surname", "") + " " + d.get("name", "")).strip(),
+                          "empty": False})
+        while len(slots) < 6:                          # doplnit do plné šestice
+            slots.append({"start": str(len(slots) + 1), "name": "", "empty": True})
+
+        comp = self.competition_name.get()
+        mx = max(1, min(int(targets), 60))
+        path = self._save_path("pdf", "finale_list")
+        try:
+            self._render_sheets_pdf(path, [slots], 1, mx, lambda r: f"Finále – {comp}")
+            self._toast("PDF položkového listu finále uloženo ✔")
             if messagebox.askyesno("Otevřít", f"PDF uloženo do:\n{path}\n\nChceš ho hned otevřít?"):
                 os.startfile(path) if hasattr(os, "startfile") else os.system(f'xdg-open "{path}"')
         except Exception as e:
@@ -1227,10 +1327,10 @@ class ShootingApp(tk.Tk):
         self._pres_inner     = inner
         self._pres_scroll_pos   = 0.0
         self._pres_pause        = 16     # úvodní pauza nahoře
-        self._pres_px           = 1.8    # pixelů na tik – klidné, ale čitelné tempo
-        self._pres_interval     = 40     # ms mezi tiky
-        self._pres_bottom_pause = 50     # pauza dole (~2 s) než skočí nahoru
-        self._pres_top_pause    = 20     # pauza nahoře (~0,8 s) po skoku
+        self._pres_px           = 0.8    # pixelů na tik – pomalé, klidné tempo
+        self._pres_interval     = 45     # ms mezi tiky
+        self._pres_bottom_pause = 45     # pauza dole (~2 s) než skočí nahoru
+        self._pres_top_pause    = 20     # pauza nahoře (~0,9 s) po skoku
         self._pres_last_sig     = None
 
         self._pres_update_loop()
@@ -1644,6 +1744,7 @@ class ShootingApp(tk.Tk):
         bb=tk.Frame(topbar,bg=BG_CARD); bb.pack(side="right",padx=10,pady=6)
         make_btn(bb,"Vyhodnotit rozstřel",self._eval_finale_rozstrel,"secondary",18).pack(side="left",padx=2)
         make_btn(bb,"Seřadit finále",     self._sort_finale,         "primary",13).pack(side="left",padx=2)
+        make_btn(bb,"🎯 List finále",     self._show_finale_sheet_dialog,"primary",13).pack(side="left",padx=2)
         make_btn(bb,"💾 Uložit",          self._save_data,           "success",10).pack(side="left",padx=2)
         make_btn(bb,"🖨 Tisk PDF",        self._print_finale_pdf,    "success",12).pack(side="left",padx=2)
         make_btn(bb,"← Zpět",             self._show_sorted,         "secondary",8).pack(side="left",padx=2)
