@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# Výstupy aplikace (soutěže, losy, PDF, CSV)
+*.srj
+*.pdf
+*.csv
+*_los.json
+
+# OS
+.DS_Store
+Thumbs.db
