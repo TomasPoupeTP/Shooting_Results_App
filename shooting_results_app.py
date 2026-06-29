@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import csv, os, json, random
 from datetime import datetime
-from collections import Counter
+from collections import Counter, defaultdict
 
 # ── ReportLab + Unicode font ──────────────────────────────────────────────────
 try:
@@ -449,6 +449,13 @@ class ShootingApp(tk.Tk):
                  relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER)
         entry_nm.pack(side="left", padx=5)
 
+        tk.Label(input_frame, text="Prefix:", font=FONT_SM, bg=BG_DARK, fg=TEXT_MUTED).pack(side="left", padx=5)
+        prefix_var = tk.StringVar()
+        entry_px = tk.Entry(input_frame, textvariable=prefix_var, width=10,
+                 bg=BG_INPUT, fg=TEXT_PRIMARY, font=FONT_BODY,
+                 relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER)
+        entry_px.pack(side="left", padx=5)
+
         # Buttons
         btn_frame = tk.Frame(input_frame, bg=BG_DARK)
         btn_frame.pack(side="left", padx=10)
@@ -461,11 +468,13 @@ class ShootingApp(tk.Tk):
                     messagebox.showwarning("Chyba", "Vyplň příjmení a jméno")
                     return
                 start_num = len(self.lottery_list) + 1
-                self.lottery_list.append({"surname": sn, "name": nm, "start_num": start_num, "los": 0})
-                
+                self.lottery_list.append({"surname": sn, "name": nm, "prefix": prefix_var.get().strip(),
+                                          "start_num": start_num, "los": 0})
+
                 surname_var.set("")
                 name_var.set("")
-                
+                prefix_var.set("")
+
                 _refresh_list()
                 _save_lottery_auto()
                 entry_sn.focus()
@@ -500,6 +509,7 @@ class ShootingApp(tk.Tk):
             tk.Label(h_frame, text="Start.č", font=FONT_SH, bg=BG_CARD, fg=ACCENT, width=8, anchor="center").pack(side="left", padx=2)
             tk.Label(h_frame, text="Příjmení", font=FONT_SH, bg=BG_CARD, fg=ACCENT, width=20, anchor="w").pack(side="left", padx=2)
             tk.Label(h_frame, text="Jméno", font=FONT_SH, bg=BG_CARD, fg=ACCENT, width=20, anchor="w").pack(side="left", padx=2)
+            tk.Label(h_frame, text="Prefix", font=FONT_SH, bg=BG_CARD, fg=ACCENT, width=10, anchor="center").pack(side="left", padx=2)
             tk.Label(h_frame, text="Akce", font=FONT_SH, bg=BG_CARD, fg=TEXT_MUTED, width=6, anchor="center").pack(side="left", padx=2)
             
             # Rows - Srovnané řádky a decentní tlačítko mazání
@@ -529,7 +539,19 @@ class ShootingApp(tk.Tk):
                 
                 tk.Label(r, text=d["surname"], font=FONT_BODY, bg=row_bg, fg=TEXT_PRIMARY, width=20, anchor="w").pack(side="left", padx=2)
                 tk.Label(r, text=d["name"], font=FONT_BODY, bg=row_bg, fg=TEXT_MUTED, width=20, anchor="w").pack(side="left", padx=2)
-                
+
+                px_var = tk.StringVar(value=str(d.get("prefix", "")))
+                def make_px_updater(idx=i, var=px_var):
+                    def _u(*a):
+                        self.lottery_list[idx]["prefix"] = var.get().strip()
+                        _save_lottery_auto()
+                    return _u
+                px_var.trace_add("write", make_px_updater())
+                e_px = tk.Entry(r, textvariable=px_var, width=10, bg=BG_INPUT, fg=TEXT_PRIMARY,
+                                font=FONT_BODY, justify="center", relief="flat",
+                                highlightthickness=1, highlightbackground=BORDER, highlightcolor=ACCENT)
+                e_px.pack(side="left", padx=2)
+
                 # Decentní mazací tlačítko, které zčervená až při najetí myší
                 btn_del = tk.Button(r, text="✕", font=FONT_SM, bg=row_bg, fg=TEXT_MUTED,
                                     relief="flat", bd=0, cursor="hand2", width=4, activebackground=RED_ACCENT, activeforeground=TEXT_PRIMARY,
@@ -583,7 +605,14 @@ class ShootingApp(tk.Tk):
                 if not self.lottery_list:
                     messagebox.showwarning("Chyba", "Nejdřív přidej střelce")
                     return
-                random.shuffle(self.lottery_list)
+                assigned = self._auto_assign_relays(self.lottery_list, 6)
+                if assigned is None:
+                    messagebox.showwarning("Nelze rozlosovat",
+                        "Některý prefix má víc střelců, než je počet šestic – nelze je "
+                        "rozdělit tak, aby dva se stejným prefixem nebyli ve stejné šestici.\n\n"
+                        "Uber střelce s daným prefixem nebo přidej další účastníky.")
+                    return
+                self.lottery_list = assigned
                 for i, d in enumerate(self.lottery_list, 1):
                     d["los"] = i
                     d["start_num"] = i
@@ -789,6 +818,51 @@ class ShootingApp(tk.Tk):
         for _ in range(int(extra_pages or 0)):          # zcela prázdné rundy navíc
             rounds.append([_empty() for _ in range(page_rows)])
         return rounds
+
+    def _auto_assign_relays(self, shooters, group_size=6):
+        """Náhodně přeskládá střelce tak, aby dva se stejným (neprázdným) prefixem
+        nebyli ve stejné šestici. Vrací nový seznam, nebo None pokud to nelze."""
+        n = len(shooters)
+        if n == 0:
+            return []
+        R = (n + group_size - 1) // group_size           # počet šestic (rund)
+        def pref(s): return str(s.get("prefix", "") or "").strip().lower()
+        counts = Counter(pref(s) for s in shooters if pref(s))
+        if counts and max(counts.values()) > R:
+            return None                                   # nelze – prefix má víc členů než rund
+        for _attempt in range(300):
+            pool = shooters[:]
+            random.shuffle(pool)
+            relays = [[] for _ in range(R)]
+            relay_pref = [set() for _ in range(R)]
+            groups, plain = defaultdict(list), []
+            for s in pool:
+                p = pref(s)
+                (groups[p].append(s) if p else plain.append(s))
+            # nejdřív umístit prefixované (větší skupiny první) do různých šestic
+            ordered = []
+            for p, members in sorted(groups.items(), key=lambda kv: -len(kv[1])):
+                ordered.extend(members)
+            ok = True
+            for s in ordered:
+                p = pref(s)
+                cands = [r for r in range(R) if len(relays[r]) < group_size and p not in relay_pref[r]]
+                if not cands:
+                    ok = False; break
+                r = min(cands, key=lambda r: len(relays[r]))
+                relays[r].append(s); relay_pref[r].add(p)
+            if not ok:
+                continue
+            for s in plain:                               # zbytek bez prefixu kamkoli
+                r = min((r for r in range(R) if len(relays[r]) < group_size),
+                        key=lambda r: len(relays[r]))
+                relays[r].append(s)
+            result = []
+            for r in range(R):
+                random.shuffle(relays[r])
+                result.extend(relays[r])
+            return result
+        return None
 
     def _show_item_sheets_dialog(self):
         if not self.lottery_list:
@@ -1410,50 +1484,68 @@ class ShootingApp(tk.Tk):
         F_HDR = ("Segoe UI", 14, "bold")
         F_ROW = ("Segoe UI", 17, "bold")
         F_SUM = ("Segoe UI", 19, "bold")
+        F_CAT = ("Segoe UI", 15, "bold")
 
-        col_w = [4, 26]
-        if use_cat: col_w.append(7)
-        col_w += [8] * ni
-        col_w.append(9)
+        col_w = [4, 26] + [8] * ni + [9]
         sum_col = len(col_w) - 1
+        ncols = len(col_w)
 
-        def cell(text, row, col, fg, bg, font, anchor="center"):
-            tk.Label(inner, text=text, width=col_w[col], font=font, bg=bg, fg=fg,
-                     anchor=anchor, padx=8, pady=8,
-                     highlightthickness=1, highlightbackground=BORDER
-                     ).grid(row=row, column=col, sticky="nsew", padx=1, pady=1)
+        def cell(text, row, col, fg, bg, font, anchor="center", span=1):
+            w = tk.Label(inner, text=text, font=font, bg=bg, fg=fg, anchor=anchor,
+                         padx=8, pady=8, highlightthickness=1, highlightbackground=BORDER)
+            if span > 1:
+                w.grid(row=row, column=col, columnspan=span, sticky="nsew", padx=1, pady=1)
+            else:
+                w.configure(width=col_w[col])
+                w.grid(row=row, column=col, sticky="nsew", padx=1, pady=1)
 
-        # Hlavička
+        # Hlavička sloupců
         c = 0
         cell("#", 0, c, ACCENT, BG_CARD, F_HDR); c += 1
         cell("Jméno", 0, c, ACCENT, BG_CARD, F_HDR, anchor="w"); c += 1
-        if use_cat:
-            cell("Kat.", 0, c, ACCENT, BG_CARD, F_HDR); c += 1
         for i in range(1, ni + 1):
             cell(f"Pol.{i}", 0, c, ACCENT, BG_CARD, F_HDR); c += 1
         cell("Součet", 0, sum_col, ACCENT, BG_CARD, F_HDR)
 
-        medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-        for ri, d in enumerate(data):
-            rank = ri + 1
-            rb = BG_CARD if ri % 2 == 0 else BG_INPUT
-            if rank <= 3:   rfg = GOLD
-            elif rank <= 6: rfg = GREEN_ACCENT
-            else:           rfg = TEXT_MUTED
-            c = 0
-            cell(medals.get(rank, str(rank)), rank, c, rfg, rb, F_ROW); c += 1
-            name = (d.get("surname", "") + " " + d.get("name", "")).strip()
-            cell(name, rank, c, TEXT_PRIMARY, rb, F_ROW, anchor="w"); c += 1
-            if use_cat:
-                cell(cat_short(d.get("category", "")), rank, c, TEXT_MUTED, rb, F_ROW); c += 1
-            for i in range(1, ni + 1):
-                cell(self._cs(d.get(f"item{i}_score", "")), rank, c, TEXT_PRIMARY, rb, F_ROW); c += 1
-            cell(self._cs(d.get("total", 0)), rank, sum_col, GOLD, rb, F_SUM)
-
         if not data:
             tk.Label(inner, text="Zatím nejsou zadáni žádní střelci.",
                      font=("Segoe UI", 16), bg=BG_DARK, fg=TEXT_MUTED
-                     ).grid(row=1, column=0, columnspan=max(1, sum_col + 1), padx=20, pady=20)
+                     ).grid(row=1, column=0, columnspan=ncols, padx=20, pady=20)
+            inner.grid_columnconfigure(1, weight=1)
+            return
+
+        medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+        def render_rows(rows, gr):
+            for ri, d in enumerate(rows):
+                rank = ri + 1
+                rb = BG_CARD if ri % 2 == 0 else BG_INPUT
+                if rank <= 3:   rfg = GOLD
+                elif rank <= 6: rfg = GREEN_ACCENT
+                else:           rfg = TEXT_MUTED
+                c = 0
+                cell(medals.get(rank, str(rank)), gr, c, rfg, rb, F_ROW); c += 1
+                name = (d.get("surname", "") + " " + d.get("name", "")).strip()
+                cell(name, gr, c, TEXT_PRIMARY, rb, F_ROW, anchor="w"); c += 1
+                for i in range(1, ni + 1):
+                    cell(self._cs(d.get(f"item{i}_score", "")), gr, c, TEXT_PRIMARY, rb, F_ROW); c += 1
+                cell(self._cs(d.get("total", 0)), gr, sum_col, GOLD, rb, F_SUM)
+                gr += 1
+            return gr
+
+        gr = 1
+        if use_cat:
+            # Postupně po jednotlivých kategoriích, každá se samostatným nadpisem a pořadím
+            cats = sorted({d.get("category", "") for d in data}, key=lambda c: (c == "", c.lower()))
+            for cat in cats:
+                rows = [d for d in data if d.get("category", "") == cat]
+                if not rows:
+                    continue
+                label = cat if cat else "Bez kategorie"
+                cell(f"▸  {label}", gr, 0, BG_DARK, ACCENT, F_CAT, anchor="w", span=ncols)
+                gr += 1
+                gr = render_rows(rows, gr)
+        else:
+            render_rows(data, gr)
 
         inner.grid_columnconfigure(1, weight=1)
 
