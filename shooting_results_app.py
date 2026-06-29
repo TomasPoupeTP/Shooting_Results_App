@@ -6,11 +6,11 @@ from collections import Counter
 
 # ── ReportLab + Unicode font ──────────────────────────────────────────────────
 try:
-    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib import colors
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import cm
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
@@ -707,10 +707,253 @@ class ShootingApp(tk.Tk):
         make_btn(ctrl_frame, "Seřadit dle čísel", _sort_by_los, "secondary", 15).pack(side="left", padx=3)
         make_btn(ctrl_frame, "🎲 Auto-Los", _auto_los, "secondary", 11).pack(side="left", padx=3)
         make_btn(ctrl_frame, "🖨️ Tisk listiny", _print_lottery_pdf, "primary", 13).pack(side="left", padx=3)
+        make_btn(ctrl_frame, "🎯 Položkové listy", self._show_item_sheets_dialog, "primary", 16).pack(side="left", padx=3)
         make_btn(ctrl_frame, "💾 Uložit los", _save_los, "success", 12).pack(side="left", padx=3)
         make_btn(ctrl_frame, "📂 Načíst los", _load_los, "secondary", 12).pack(side="left", padx=3)
         make_btn(ctrl_frame, "✓ Použít v zápisu", _apply_to_entry, "primary", 15).pack(side="left", padx=3)
         make_btn(ctrl_frame, "← Zpět", self._show_home, "secondary", 9).pack(side="left", padx=3)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # POLOŽKOVÉ LISTY (score sheets) – PDF na A4 naležato
+    # ══════════════════════════════════════════════════════════════════════════
+    def _round_sizes(self, n, mode, per, custom_text, reserve):
+        """Vrátí seznam velikostí rund (počet míst na jednu stránku/rundu)."""
+        sizes = []
+        cap = 6
+        if mode == "auto":
+            per = 6
+        if mode in ("auto", "per"):
+            try: per = max(1, int(per or 6))
+            except Exception: per = 6
+            cap = per
+            full, rem = divmod(max(n, 0), per)
+            sizes = [per] * full + ([rem] if rem else [])
+            if not sizes:
+                sizes = [per]
+        elif mode == "custom":
+            for tok in str(custom_text).replace(";", ",").replace(" ", ",").split(","):
+                tok = tok.strip()
+                if tok.isdigit() and int(tok) > 0:
+                    sizes.append(int(tok))
+            if not sizes:
+                sizes = [6]
+            cap = max(sizes + [6])
+            while sum(sizes) < n:                      # rundy navíc, aby se vešli všichni
+                sizes.append(min(6, n - sum(sizes)) or 6)
+        # rezervní (prázdná) místa navíc – pro pozdější ruční dopsání
+        try: reserve = max(0, int(reserve or 0))
+        except Exception: reserve = 0
+        while reserve > 0:
+            if sizes and sizes[-1] < cap:
+                add = min(reserve, cap - sizes[-1])
+                sizes[-1] += add; reserve -= add
+            else:
+                take = min(reserve, cap)
+                sizes.append(take); reserve -= take
+        return sizes
+
+    def _build_slots(self, round_sizes):
+        """Rozdělí střelce (dle startovního čísla) do míst; přebytečná místa zůstanou prázdná."""
+        real = [d for d in self.lottery_list if (d.get("surname") or d.get("name"))]
+        def _sn(d):
+            try: return int(str(d.get("start_num", 0)).strip() or 0)
+            except Exception: return 10**9
+        real = sorted(real, key=_sn)
+        nums = [_sn(d) for d in real if str(d.get("start_num", "")).strip().isdigit()]
+        next_start = (max(nums) + 1) if nums else (len(real) + 1)
+        total = sum(round_sizes)
+        slots = []
+        empty_i = 0
+        for i in range(total):
+            if i < len(real):
+                d = real[i]
+                slots.append({
+                    "start": str(d.get("start_num", i + 1)),
+                    "name": (d.get("surname", "") + " " + d.get("name", "")).strip(),
+                    "empty": False,
+                })
+            else:
+                slots.append({"start": str(next_start + empty_i), "name": "", "empty": True})
+                empty_i += 1
+        rounds, idx = [], 0
+        for sz in round_sizes:
+            rounds.append(slots[idx:idx + sz]); idx += sz
+        return rounds
+
+    def _show_item_sheets_dialog(self):
+        if not self.lottery_list:
+            messagebox.showwarning("Chyba", "Nejdřív přidej střelce do losu."); return
+        if not REPORTLAB_AVAILABLE:
+            messagebox.showerror("Chyba", "Není nainstalována knihovna ReportLab (pip install reportlab)"); return
+
+        n = len([d for d in self.lottery_list if (d.get("surname") or d.get("name"))])
+
+        win = tk.Toplevel(self)
+        win.title("Položkové listy – nastavení")
+        win.configure(bg=BG_DARK)
+        win.geometry("540x440")
+        win.transient(self)
+        try: win.grab_set()
+        except Exception: pass
+
+        tk.Frame(win, bg=ACCENT, height=4).pack(fill="x")
+        tk.Label(win, text="🎯  Položkové listy", font=("Georgia", 16, "bold"),
+                 bg=BG_DARK, fg=ACCENT).pack(anchor="w", padx=18, pady=(12, 0))
+        tk.Label(win, text=f"Střelců: {n}   •   Položek na střelce: {self.num_items.get()}   •   Max. terčů: {self.max_score.get()}",
+                 font=FONT_SM, bg=BG_DARK, fg=TEXT_MUTED).pack(anchor="w", padx=18, pady=(2, 8))
+
+        card = tk.Frame(win, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER)
+        card.pack(fill="x", padx=18, pady=4)
+        inner = tk.Frame(card, bg=BG_CARD); inner.pack(padx=16, pady=14, fill="x")
+
+        mode        = tk.StringVar(value="auto")
+        per_var     = tk.IntVar(value=6)
+        custom_var  = tk.StringVar(value="")
+        reserve_var = tk.IntVar(value=0)
+
+        preview = tk.Label(win, text="", font=FONT_SM, bg=BG_DARK, fg=GREEN_ACCENT,
+                           justify="left", anchor="w", wraplength=490)
+
+        def _current_sizes():
+            return self._round_sizes(n, mode.get(), per_var.get(), custom_var.get(), reserve_var.get())
+
+        def _update_preview(*_):
+            try:
+                sizes = _current_sizes()
+                empties = max(0, sum(sizes) - n)
+                txt = "Rundy: " + ", ".join(str(s) for s in sizes)
+                txt += f"    •  stran: {len(sizes)}    •  prázdných míst: {empties}"
+                preview.configure(text=txt)
+            except Exception as e:
+                preview.configure(text=str(e))
+
+        def _radio(parent, text, val):
+            return tk.Radiobutton(parent, text=text, variable=mode, value=val,
+                                  bg=BG_CARD, fg=TEXT_PRIMARY, selectcolor=BG_INPUT,
+                                  activebackground=BG_CARD, font=FONT_BODY,
+                                  command=_update_preview, anchor="w")
+
+        r1 = tk.Frame(inner, bg=BG_CARD); r1.pack(fill="x", pady=3)
+        _radio(r1, "Automaticky po 6 lidech", "auto").pack(side="left")
+
+        r2 = tk.Frame(inner, bg=BG_CARD); r2.pack(fill="x", pady=3)
+        _radio(r2, "Po vlastním počtu na rundu:", "per").pack(side="left")
+        tk.Spinbox(r2, textvariable=per_var, from_=1, to=6, width=4,
+                   bg=BG_INPUT, fg=TEXT_PRIMARY, relief="flat", bd=0, font=FONT_BODY,
+                   highlightthickness=1, highlightbackground=BORDER, buttonbackground=BG_HOVER,
+                   command=_update_preview).pack(side="left", padx=(6, 0))
+
+        r3 = tk.Frame(inner, bg=BG_CARD); r3.pack(fill="x", pady=3)
+        _radio(r3, "Vlastní rozpis (např. 6,6,5):", "custom").pack(side="left")
+        ce = tk.Entry(r3, textvariable=custom_var, width=16,
+                      bg=BG_INPUT, fg=TEXT_PRIMARY, relief="flat", bd=0, font=FONT_BODY,
+                      highlightthickness=1, highlightbackground=BORDER, highlightcolor=ACCENT)
+        ce.pack(side="left", padx=(6, 0))
+        ce.bind("<KeyRelease>", _update_preview)
+
+        r4 = tk.Frame(inner, bg=BG_CARD); r4.pack(fill="x", pady=(10, 3))
+        tk.Label(r4, text="Rezervní (prázdná) místa navíc:", bg=BG_CARD, fg=TEXT_MUTED,
+                 font=FONT_BODY).pack(side="left")
+        tk.Spinbox(r4, textvariable=reserve_var, from_=0, to=60, width=4,
+                   bg=BG_INPUT, fg=TEXT_PRIMARY, relief="flat", bd=0, font=FONT_BODY,
+                   highlightthickness=1, highlightbackground=BORDER, buttonbackground=BG_HOVER,
+                   command=_update_preview).pack(side="left", padx=(6, 0))
+
+        preview.pack(anchor="w", padx=18, pady=(12, 4))
+        _update_preview()
+
+        bf = tk.Frame(win, bg=BG_DARK); bf.pack(side="bottom", fill="x", pady=10)
+        def _go():
+            sizes = _current_sizes()
+            try: win.grab_release()
+            except Exception: pass
+            win.destroy()
+            self._generate_item_sheets_pdf(sizes)
+        make_btn(bf, "🖨️ Generovat PDF", _go, "primary", 18).pack(side="left", padx=(18, 6))
+        make_btn(bf, "Zrušit", win.destroy, "secondary", 10).pack(side="left", padx=2)
+
+    def _sheet_row_heights(self, ni):
+        return [0.55*cm, 0.40*cm] + [0.62*cm]*ni
+
+    def _item_sheet_table(self, slot, ni, mx, col_widths, ncols, name_style, hdr_style):
+        if slot["empty"]:
+            banner = f'St. č. {slot["start"]}   ·   ………………………………………………………'
+        else:
+            banner = f'St. č. {slot["start"]}   ·   {slot["name"]}'
+
+        data = []
+        data.append([Paragraph(banner, name_style)] + [""] * (ncols - 1))     # jmenovka
+        data.append(["Pol."] + [Paragraph(str(i), hdr_style) for i in range(1, mx + 1)]
+                    + [Paragraph("Celkem", hdr_style), Paragraph("Celkové<br/>celkem", hdr_style)])
+        for it in range(1, ni + 1):
+            data.append([Paragraph(str(it), hdr_style)] + [""] * mx + ["", ""])
+
+        t = Table(data, colWidths=col_widths, rowHeights=self._sheet_row_heights(ni))
+        t.setStyle(TableStyle([
+            ("SPAN", (0, 0), (ncols - 1, 0)),                       # jmenovka přes celou šířku
+            ("SPAN", (ncols - 1, 2), (ncols - 1, 1 + ni)),          # Celkové celkem přes řádky položek
+            ("BACKGROUND", (0, 0), (ncols - 1, 0), colors.HexColor("#E8E8E8")),
+            ("BACKGROUND", (0, 1), (ncols - 1, 1), colors.HexColor("#F2F2F2")),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#888888")),
+            ("BOX", (0, 0), (-1, -1), 0.9, colors.black),
+            ("LINEBELOW", (0, 0), (ncols - 1, 0), 0.9, colors.black),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 1), (-1, -1), "CENTER"),
+            ("FONTNAME", (0, 1), (0, -1), PDF_FONT_BOLD),
+            ("FONTSIZE", (0, 1), (0, -1), 8),
+            ("LEFTPADDING", (0, 0), (-1, -1), 1),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 1),
+            ("TOPPADDING", (0, 0), (-1, -1), 1),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ("LEFTPADDING", (0, 0), (ncols - 1, 0), 5),             # odsazení jmenovky
+        ]))
+        return t
+
+    def _generate_item_sheets_pdf(self, round_sizes):
+        if not REPORTLAB_AVAILABLE:
+            messagebox.showerror("Chyba", "pip install reportlab"); return
+        rounds = self._build_slots(round_sizes)
+        ni = self.num_items.get()
+        try: mx = int(self.max_score.get())
+        except Exception: mx = 25
+        mx = max(1, min(mx, 60))            # rozumný limit pro tisk na šířku
+
+        path = self._save_path("pdf", "polozkove_listy")
+        try:
+            page = landscape(A4)
+            doc = SimpleDocTemplate(path, pagesize=page,
+                                    leftMargin=1.0*cm, rightMargin=1.0*cm,
+                                    topMargin=1.0*cm, bottomMargin=0.8*cm)
+            usable_w = page[0] - 2.0*cm
+            w_idx, w_sum, w_tot = 0.8*cm, 1.4*cm, 1.5*cm
+            box_w = max((usable_w - w_idx - w_sum - w_tot) / mx, 0.30*cm)
+            col_widths = [w_idx] + [box_w]*mx + [w_sum, w_tot]
+            ncols = mx + 3
+
+            comp = self.competition_name.get()
+            title_style = ParagraphStyle("rt", fontName=PDF_FONT_BOLD, fontSize=14,
+                                         alignment=TA_LEFT, textColor=colors.black, spaceAfter=4)
+            name_style  = ParagraphStyle("nm", fontName=PDF_FONT_BOLD, fontSize=10,
+                                         alignment=TA_LEFT, textColor=colors.black)
+            hdr_style   = ParagraphStyle("hd", fontName=PDF_FONT, fontSize=6.5,
+                                         alignment=TA_CENTER, textColor=colors.black, leading=7)
+
+            story = []
+            for r_no, slots in enumerate(rounds, 1):
+                story.append(Paragraph(f"Runda {r_no} – {comp}", title_style))
+                for slot in slots:
+                    story.append(self._item_sheet_table(slot, ni, mx, col_widths, ncols,
+                                                        name_style, hdr_style))
+                    story.append(Spacer(1, 0.18*cm))
+                if r_no < len(rounds):
+                    story.append(PageBreak())
+
+            doc.build(story)
+            self._toast("PDF položkových listů uloženo ✔")
+            if messagebox.askyesno("Otevřít", f"PDF uloženo do:\n{path}\n\nChceš ho hned otevřít?"):
+                os.startfile(path) if hasattr(os, "startfile") else os.system(f'xdg-open "{path}"')
+        except Exception as e:
+            messagebox.showerror("Chyba tisku PDF", str(e))
 
     # ══════════════════════════════════════════════════════════════════════════
     # ENTRY GRID
