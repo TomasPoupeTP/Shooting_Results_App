@@ -12,6 +12,11 @@ venv/
 *.csv
 *_los.json
 
+# PyInstaller build artefakty
+build/
+dist/
+*.spec
+
 # OS
 .DS_Store
 Thumbs.db
