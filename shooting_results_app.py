@@ -716,16 +716,14 @@ class ShootingApp(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     # POLOŽKOVÉ LISTY (score sheets) – PDF na A4 naležato
     # ══════════════════════════════════════════════════════════════════════════
-    def _round_sizes(self, n, mode, per, custom_text, reserve):
-        """Vrátí seznam velikostí rund (počet míst na jednu stránku/rundu)."""
+    def _round_sizes(self, n, mode, per, custom_text):
+        """Vrátí seznam počtu REÁLNÝCH střelců na jednu rundu (stránku)."""
         sizes = []
-        cap = 6
         if mode == "auto":
             per = 6
         if mode in ("auto", "per"):
             try: per = max(1, int(per or 6))
             except Exception: per = 6
-            cap = per
             full, rem = divmod(max(n, 0), per)
             sizes = [per] * full + ([rem] if rem else [])
             if not sizes:
@@ -737,47 +735,42 @@ class ShootingApp(tk.Tk):
                     sizes.append(int(tok))
             if not sizes:
                 sizes = [6]
-            cap = max(sizes + [6])
             while sum(sizes) < n:                      # rundy navíc, aby se vešli všichni
                 sizes.append(min(6, n - sum(sizes)) or 6)
-        # rezervní (prázdná) místa navíc – pro pozdější ruční dopsání
-        try: reserve = max(0, int(reserve or 0))
-        except Exception: reserve = 0
-        while reserve > 0:
-            if sizes and sizes[-1] < cap:
-                add = min(reserve, cap - sizes[-1])
-                sizes[-1] += add; reserve -= add
-            else:
-                take = min(reserve, cap)
-                sizes.append(take); reserve -= take
         return sizes
 
-    def _build_slots(self, round_sizes):
-        """Rozdělí střelce (dle startovního čísla) do míst; přebytečná místa zůstanou prázdná."""
+    def _build_slots(self, round_sizes, extra_pages=0, page_rows=6):
+        """Rozdělí střelce (dle startovního čísla) do rund.
+        Každá stránka má vždy min. `page_rows` (6) míst – chybějící se doplní
+        prázdnými buňkami se startovním číslem pro pozdější ruční dopsání."""
         real = [d for d in self.lottery_list if (d.get("surname") or d.get("name"))]
         def _sn(d):
             try: return int(str(d.get("start_num", 0)).strip() or 0)
             except Exception: return 10**9
         real = sorted(real, key=_sn)
         nums = [_sn(d) for d in real if str(d.get("start_num", "")).strip().isdigit()]
-        next_start = (max(nums) + 1) if nums else (len(real) + 1)
-        total = sum(round_sizes)
-        slots = []
-        empty_i = 0
-        for i in range(total):
-            if i < len(real):
-                d = real[i]
-                slots.append({
-                    "start": str(d.get("start_num", i + 1)),
-                    "name": (d.get("surname", "") + " " + d.get("name", "")).strip(),
-                    "empty": False,
-                })
-            else:
-                slots.append({"start": str(next_start + empty_i), "name": "", "empty": True})
-                empty_i += 1
-        rounds, idx = [], 0
-        for sz in round_sizes:
-            rounds.append(slots[idx:idx + sz]); idx += sz
+        ec = [(max(nums) + 1) if nums else (len(real) + 1)]   # čítač čísel pro prázdná místa
+        def _empty():
+            s = {"start": str(ec[0]), "name": "", "empty": True}; ec[0] += 1; return s
+
+        ridx = 0
+        rounds = []
+        for size in round_sizes:
+            pr = max(page_rows, size)
+            block = []
+            for j in range(pr):
+                if j < size and ridx < len(real):
+                    d = real[ridx]; ridx += 1
+                    block.append({
+                        "start": str(d.get("start_num", ridx)),
+                        "name": (d.get("surname", "") + " " + d.get("name", "")).strip(),
+                        "empty": False,
+                    })
+                else:
+                    block.append(_empty())
+            rounds.append(block)
+        for _ in range(int(extra_pages or 0)):          # zcela prázdné rundy navíc
+            rounds.append([_empty() for _ in range(page_rows)])
         return rounds
 
     def _show_item_sheets_dialog(self):
@@ -815,14 +808,17 @@ class ShootingApp(tk.Tk):
                            justify="left", anchor="w", wraplength=490)
 
         def _current_sizes():
-            return self._round_sizes(n, mode.get(), per_var.get(), custom_var.get(), reserve_var.get())
+            return self._round_sizes(n, mode.get(), per_var.get(), custom_var.get())
 
         def _update_preview(*_):
             try:
                 sizes = _current_sizes()
-                empties = max(0, sum(sizes) - n)
-                txt = "Rundy: " + ", ".join(str(s) for s in sizes)
-                txt += f"    •  stran: {len(sizes)}    •  prázdných míst: {empties}"
+                try: extra = max(0, int(reserve_var.get() or 0))
+                except Exception: extra = 0
+                pages = len(sizes) + extra
+                empties = sum(max(6, s) - s for s in sizes) + extra * 6
+                txt = "Rundy (lidí): " + ", ".join(str(s) for s in sizes)
+                txt += f"    •  stran: {pages}    •  prázdných míst: {empties}"
                 preview.configure(text=txt)
             except Exception as e:
                 preview.configure(text=str(e))
@@ -852,9 +848,9 @@ class ShootingApp(tk.Tk):
         ce.bind("<KeyRelease>", _update_preview)
 
         r4 = tk.Frame(inner, bg=BG_CARD); r4.pack(fill="x", pady=(10, 3))
-        tk.Label(r4, text="Rezervní (prázdná) místa navíc:", bg=BG_CARD, fg=TEXT_MUTED,
+        tk.Label(r4, text="Prázdné rundy navíc (stránky):", bg=BG_CARD, fg=TEXT_MUTED,
                  font=FONT_BODY).pack(side="left")
-        tk.Spinbox(r4, textvariable=reserve_var, from_=0, to=60, width=4,
+        tk.Spinbox(r4, textvariable=reserve_var, from_=0, to=10, width=4,
                    bg=BG_INPUT, fg=TEXT_PRIMARY, relief="flat", bd=0, font=FONT_BODY,
                    highlightthickness=1, highlightbackground=BORDER, buttonbackground=BG_HOVER,
                    command=_update_preview).pack(side="left", padx=(6, 0))
@@ -865,10 +861,12 @@ class ShootingApp(tk.Tk):
         bf = tk.Frame(win, bg=BG_DARK); bf.pack(side="bottom", fill="x", pady=10)
         def _go():
             sizes = _current_sizes()
+            try: extra = max(0, int(reserve_var.get() or 0))
+            except Exception: extra = 0
             try: win.grab_release()
             except Exception: pass
             win.destroy()
-            self._generate_item_sheets_pdf(sizes)
+            self._generate_item_sheets_pdf(sizes, extra)
         make_btn(bf, "🖨️ Generovat PDF", _go, "primary", 18).pack(side="left", padx=(18, 6))
         make_btn(bf, "Zrušit", win.destroy, "secondary", 10).pack(side="left", padx=2)
 
@@ -884,7 +882,7 @@ class ShootingApp(tk.Tk):
         data = []
         data.append([Paragraph(banner, name_style)] + [""] * (ncols - 1))     # jmenovka
         data.append(["Pol."] + [Paragraph(str(i), hdr_style) for i in range(1, mx + 1)]
-                    + [Paragraph("Celkem", hdr_style), Paragraph("Celkové<br/>celkem", hdr_style)])
+                    + [Paragraph("Celkem", hdr_style), Paragraph("Celkové", hdr_style)])
         for it in range(1, ni + 1):
             data.append([Paragraph(str(it), hdr_style)] + [""] * mx + ["", ""])
 
@@ -909,10 +907,10 @@ class ShootingApp(tk.Tk):
         ]))
         return t
 
-    def _generate_item_sheets_pdf(self, round_sizes):
+    def _generate_item_sheets_pdf(self, round_sizes, extra_pages=0):
         if not REPORTLAB_AVAILABLE:
             messagebox.showerror("Chyba", "pip install reportlab"); return
-        rounds = self._build_slots(round_sizes)
+        rounds = self._build_slots(round_sizes, extra_pages)
         ni = self.num_items.get()
         try: mx = int(self.max_score.get())
         except Exception: mx = 25
@@ -1228,11 +1226,11 @@ class ShootingApp(tk.Tk):
         self._pres_canvas    = canvas
         self._pres_inner     = inner
         self._pres_scroll_pos   = 0.0
-        self._pres_pause        = 24     # úvodní pauza nahoře
-        self._pres_px           = 1.2    # pixelů na tik (pomalé, plynulé)
-        self._pres_interval     = 50     # ms mezi tiky
-        self._pres_bottom_pause = 70     # pauza dole (~3,5 s) než skočí nahoru
-        self._pres_top_pause    = 24     # pauza nahoře (~1,2 s) po skoku
+        self._pres_pause        = 16     # úvodní pauza nahoře
+        self._pres_px           = 1.8    # pixelů na tik – klidné, ale čitelné tempo
+        self._pres_interval     = 40     # ms mezi tiky
+        self._pres_bottom_pause = 50     # pauza dole (~2 s) než skočí nahoru
+        self._pres_top_pause    = 20     # pauza nahoře (~0,8 s) po skoku
         self._pres_last_sig     = None
 
         self._pres_update_loop()
