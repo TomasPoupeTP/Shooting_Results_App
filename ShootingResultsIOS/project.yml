@@ -1,0 +1,29 @@
+name: ShootingResultsIOS
+options:
+  bundleIdPrefix: com.tomaspoupe
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+configs:
+  Debug: debug
+  Release: release
+
+targets:
+  ShootingResultsIOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/ShootingResultsApp
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "Výsledky"
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        PRODUCT_BUNDLE_IDENTIFIER: com.tomaspoupe.shootingresults
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: NO
