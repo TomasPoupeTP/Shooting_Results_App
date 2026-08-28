@@ -1,0 +1,38 @@
+name: iOS build check (simulator)
+
+on:
+  push:
+    branches: [v0-ios-app]
+    paths:
+      - "ShootingResultsIOS/**"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    paths:
+      - "ShootingResultsIOS/**"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: ShootingResultsIOS
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app || true
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build for iOS Simulator (no code signing needed)
+        run: |
+          xcodebuild build \
+            -project ShootingResultsIOS.xcodeproj \
+            -scheme ShootingResultsIOS \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
