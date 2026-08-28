@@ -132,6 +132,17 @@ class ShootingApp(tk.Tk):
         self.finale_finalists = []
         self.lottery_list     = []  # seznam s losem
 
+        # ── Nastavení prezentačního módu ─────────────────────────────────────
+        self.pres_speed       = tk.DoubleVar(value=0.8)    # px na tik
+        self.pres_end_pause   = tk.DoubleVar(value=2.0)    # sekundy pauzy na konci
+        self.pres_show_date   = tk.BooleanVar(value=False)
+        self.pres_show_info   = tk.BooleanVar(value=True)
+        self.pres_hl_finale   = tk.BooleanVar(value=True)
+        self.pres_hl_top_item = tk.BooleanVar(value=True)
+        self.pres_show_graph  = tk.BooleanVar(value=True)
+        self.pres_info_text   = tk.StringVar(value="")
+        self._pres_settings_win = None
+
         self.container = tk.Frame(self, bg=BG_DARK)
         self.container.pack(fill="both", expand=True)
         self.container.grid_rowconfigure(0, weight=1)
@@ -244,6 +255,16 @@ class ShootingApp(tk.Tk):
             "shooters_data":     self.shooters_data,
             "sorted_results":    self.sorted_results,
             "finale_finalists":  self.finale_finalists,
+            "pres_settings": {
+                "speed":       self.pres_speed.get(),
+                "end_pause":   self.pres_end_pause.get(),
+                "show_date":   self.pres_show_date.get(),
+                "show_info":   self.pres_show_info.get(),
+                "hl_finale":   self.pres_hl_finale.get(),
+                "hl_top_item": self.pres_hl_top_item.get(),
+                "show_graph":  self.pres_show_graph.get(),
+                "info_text":   self.pres_info_text.get(),
+            },
         }
         json_path = self._save_path("srj")
         with open(json_path, "w", encoding="utf-8") as fh:
@@ -1164,6 +1185,18 @@ class ShootingApp(tk.Tk):
             self.shooters_data    = data.get("shooters_data",[])
             self.sorted_results   = data.get("sorted_results",[])
             self.finale_finalists = data.get("finale_finalists",[])
+            ps = data.get("pres_settings", {}) or {}
+            try:
+                self.pres_speed.set(ps.get("speed", 0.8))
+                self.pres_end_pause.set(ps.get("end_pause", 2.0))
+                self.pres_show_date.set(ps.get("show_date", False))
+                self.pres_show_info.set(ps.get("show_info", True))
+                self.pres_hl_finale.set(ps.get("hl_finale", True))
+                self.pres_hl_top_item.set(ps.get("hl_top_item", True))
+                self.pres_show_graph.set(ps.get("show_graph", True))
+                self.pres_info_text.set(ps.get("info_text", ""))
+            except Exception:
+                pass
             self._show_entry()
         except Exception as e:
             messagebox.showerror("Chyba načítání",str(e))
@@ -1381,12 +1414,9 @@ class ShootingApp(tk.Tk):
         win.minsize(600, 400)
         win.protocol("WM_DELETE_WINDOW", self._close_presentation)
 
-        header = tk.Frame(win, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER)
-        header.pack(fill="x")
-        tk.Label(header, text=f"🎯  {self.competition_name.get()}",
-                 font=("Georgia", 26, "bold"), bg=BG_CARD, fg=ACCENT).pack(pady=(12, 2))
-        tk.Label(header, text=f"{self._discipline_text()}  •  průběžné výsledky",
-                 font=("Segoe UI", 14), bg=BG_CARD, fg=TEXT_MUTED).pack(pady=(0, 12))
+        self._pres_header = tk.Frame(win, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER)
+        self._pres_header.pack(fill="x")
+        self._pres_build_header()
 
         body = tk.Frame(win, bg=BG_DARK)
         body.pack(fill="both", expand=True)
@@ -1397,18 +1427,19 @@ class ShootingApp(tk.Tk):
         inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.bind("<Configure>", lambda e: canvas.itemconfigure(win_id, width=e.width))
 
-        self._pres_canvas    = canvas
-        self._pres_inner     = inner
-        self._pres_scroll_pos   = 0.0
-        self._pres_pause        = 16     # úvodní pauza nahoře
-        self._pres_px           = 0.8    # pixelů na tik – pomalé, klidné tempo
-        self._pres_interval     = 45     # ms mezi tiky
-        self._pres_bottom_pause = 45     # pauza dole (~2 s) než skočí nahoru
-        self._pres_top_pause    = 20     # pauza nahoře (~0,9 s) po skoku
-        self._pres_last_sig     = None
+        self._pres_canvas   = canvas
+        self._pres_inner    = inner
+        self._pres_scroll_pos = 0.0
+        self._pres_pause      = 16      # úvodní pauza nahoře (v ticích)
+        self._pres_interval   = 45      # ms mezi tiky
+        self._pres_top_pause  = 20      # pauza nahoře po skoku (v ticích)
+        self._pres_last_sig   = None
 
         self._pres_update_loop()
         self._pres_scroll_loop()
+
+        # menu s nastavením se otevře automaticky při spuštění prezentace
+        self.after(250, self._show_presentation_settings)
 
     def _pres_current_data(self):
         ni = self.num_items.get()
@@ -1460,11 +1491,15 @@ class ShootingApp(tk.Tk):
                         canvas.yview_moveto(0.0)
                         self._pres_pause = self._pres_top_pause
                 else:
-                    self._pres_scroll_pos += self._pres_px / max(content_h - view_h, 1)
+                    try: px = max(0.05, float(self.pres_speed.get()))
+                    except Exception: px = 0.8
+                    self._pres_scroll_pos += px / max(content_h - view_h, 1)
                     if self._pres_scroll_pos >= 1.0:
                         self._pres_scroll_pos = 1.0
                         canvas.yview_moveto(1.0)
-                        self._pres_pause = self._pres_bottom_pause
+                        try: secs = max(0.0, float(self.pres_end_pause.get()))
+                        except Exception: secs = 2.0
+                        self._pres_pause = max(1, int(secs * 1000 / self._pres_interval))
                     else:
                         canvas.yview_moveto(self._pres_scroll_pos)
             else:
@@ -1474,20 +1509,44 @@ class ShootingApp(tk.Tk):
             pass
         self._pres_scroll_job = self.after(self._pres_interval, self._pres_scroll_loop)
 
+    def _pres_bar(self, d, ni, mx):
+        """Textový mini-proužek úspěšnosti (zásahy / možné)."""
+        possible = ni * mx
+        try: total = float(d.get("total", 0) or 0)
+        except Exception: total = 0.0
+        pct = 0.0 if possible <= 0 else max(0.0, min(1.0, total / possible))
+        seg = 10
+        filled = int(round(pct * seg))
+        return "█" * filled + "░" * (seg - filled) + f"  {pct*100:.0f}%"
+
     def _pres_build(self, data):
         inner = self._pres_inner
         for w in inner.winfo_children():
             w.destroy()
         ni = self.num_items.get()
-        use_cat = self.use_categories.get()
+        try: mx = int(self.max_score.get())
+        except Exception: mx = 25
+        use_cat    = self.use_categories.get()
+        hl_finale  = self.pres_hl_finale.get() and not use_cat
+        hl_top     = self.pres_hl_top_item.get()
+        show_graph = self.pres_show_graph.get()
 
         F_HDR = ("Segoe UI", 14, "bold")
         F_ROW = ("Segoe UI", 17, "bold")
         F_SUM = ("Segoe UI", 19, "bold")
         F_CAT = ("Segoe UI", 15, "bold")
+        F_BAR = ("Segoe UI", 13, "bold")
 
-        col_w = [4, 26] + [8] * ni + [9]
-        sum_col = len(col_w) - 1
+        headers = [("#", 4), ("Jméno", 26)]
+        for i in range(1, ni + 1):
+            headers.append((f"Pol.{i}", 8))
+        headers.append(("Součet", 9))
+        sum_col = 2 + ni
+        graph_col = None
+        if show_graph:
+            headers.append(("Úspěšnost", 16))
+            graph_col = sum_col + 1
+        col_w = [w for _, w in headers]
         ncols = len(col_w)
 
         def cell(text, row, col, fg, bg, font, anchor="center", span=1):
@@ -1500,12 +1559,8 @@ class ShootingApp(tk.Tk):
                 w.grid(row=row, column=col, sticky="nsew", padx=1, pady=1)
 
         # Hlavička sloupců
-        c = 0
-        cell("#", 0, c, ACCENT, BG_CARD, F_HDR); c += 1
-        cell("Jméno", 0, c, ACCENT, BG_CARD, F_HDR, anchor="w"); c += 1
-        for i in range(1, ni + 1):
-            cell(f"Pol.{i}", 0, c, ACCENT, BG_CARD, F_HDR); c += 1
-        cell("Součet", 0, sum_col, ACCENT, BG_CARD, F_HDR)
+        for c, (h, _w) in enumerate(headers):
+            cell(h, 0, c, ACCENT, BG_CARD, F_HDR, anchor="w" if c in (1, graph_col) else "center")
 
         if not data:
             tk.Label(inner, text="Zatím nejsou zadáni žádní střelci.",
@@ -1514,22 +1569,42 @@ class ShootingApp(tk.Tk):
             inner.grid_columnconfigure(1, weight=1)
             return
 
+        def has_top_item(d):
+            for i in range(1, ni + 1):
+                raw = d.get(f"item{i}_score", "")
+                if str(raw).strip() == "":
+                    continue
+                try:
+                    if float(raw) == float(mx):
+                        return True
+                except (ValueError, TypeError):
+                    pass
+            return False
+
         medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-        def render_rows(rows, gr):
+        def render_rows(rows, gr, finale_hl=False):
             for ri, d in enumerate(rows):
                 rank = ri + 1
-                rb = BG_CARD if ri % 2 == 0 else BG_INPUT
-                if rank <= 3:   rfg = GOLD
-                elif rank <= 6: rfg = GREEN_ACCENT
-                else:           rfg = TEXT_MUTED
+                rb = H_TOP6 if (finale_hl and rank <= 6) else (BG_CARD if ri % 2 == 0 else BG_INPUT)
+                rfg = GOLD if rank <= 3 else (GREEN_ACCENT if rank <= 6 else TEXT_MUTED)
                 c = 0
                 cell(medals.get(rank, str(rank)), gr, c, rfg, rb, F_ROW); c += 1
                 name = (d.get("surname", "") + " " + d.get("name", "")).strip()
-                cell(name, gr, c, TEXT_PRIMARY, rb, F_ROW, anchor="w"); c += 1
+                if hl_top and has_top_item(d):
+                    cell("🎯 " + name, gr, c, ACCENT, rb, F_ROW, anchor="w")
+                else:
+                    cell(name, gr, c, TEXT_PRIMARY, rb, F_ROW, anchor="w")
+                c += 1
                 for i in range(1, ni + 1):
                     cell(self._cs(d.get(f"item{i}_score", "")), gr, c, TEXT_PRIMARY, rb, F_ROW); c += 1
                 cell(self._cs(d.get("total", 0)), gr, sum_col, GOLD, rb, F_SUM)
+                if graph_col is not None:
+                    cell(self._pres_bar(d, ni, mx), gr, graph_col, GREEN_ACCENT, rb, F_BAR, anchor="w")
                 gr += 1
+                if finale_hl and rank == 6 and ri < len(rows) - 1:
+                    tk.Frame(inner, bg=H_TOP6_BD, height=3).grid(
+                        row=gr, column=0, columnspan=ncols, sticky="nsew", pady=(1, 2))
+                    gr += 1
             return gr
 
         gr = 1
@@ -1545,9 +1620,116 @@ class ShootingApp(tk.Tk):
                 gr += 1
                 gr = render_rows(rows, gr)
         else:
-            render_rows(data, gr)
+            render_rows(data, gr, finale_hl=hl_finale)
 
         inner.grid_columnconfigure(1, weight=1)
+
+    def _pres_build_header(self):
+        """(Znovu)sestaví hlavičku prezentace podle nastavení."""
+        h = getattr(self, "_pres_header", None)
+        if h is None:
+            return
+        for w in h.winfo_children():
+            w.destroy()
+        make_btn(h, "⚙ Nastavení", self._show_presentation_settings, "secondary", 12
+                 ).place(relx=1.0, x=-12, y=12, anchor="ne")
+        tk.Label(h, text=f"🎯  {self.competition_name.get()}",
+                 font=("Georgia", 26, "bold"), bg=BG_CARD, fg=ACCENT).pack(pady=(12, 2))
+        if self.pres_show_info.get():
+            parts = [self._discipline_text(), f"max {self.max_score.get()} terčů"]
+            if self.pres_show_date.get():
+                parts.append(datetime.now().strftime("%d.%m.%Y"))
+            tk.Label(h, text="    •    ".join(parts),
+                     font=("Segoe UI", 14), bg=BG_CARD, fg=TEXT_MUTED).pack(pady=(0, 2))
+            info = self.pres_info_text.get().strip()
+            tk.Label(h, text=info if info else "průběžné výsledky",
+                     font=("Segoe UI", 13), bg=BG_CARD,
+                     fg=(TEXT_PRIMARY if info else TEXT_MUTED)).pack(pady=(0, 10))
+        else:
+            txt = datetime.now().strftime("%d.%m.%Y") if self.pres_show_date.get() else "průběžné výsledky"
+            tk.Label(h, text=txt, font=("Segoe UI", 13), bg=BG_CARD, fg=TEXT_MUTED).pack(pady=(0, 10))
+
+    def _show_presentation_settings(self):
+        """Menu s drobnými úpravami prezentačního módu (živě se propisuje)."""
+        if not self._pres_alive():
+            return
+        w = getattr(self, "_pres_settings_win", None)
+        if w is not None:
+            try:
+                if w.winfo_exists():
+                    w.deiconify(); w.lift(); w.focus_force(); return
+            except Exception:
+                pass
+
+        win = tk.Toplevel(self)
+        self._pres_settings_win = win
+        win.title("Nastavení prezentace")
+        win.configure(bg=BG_DARK)
+        win.geometry("440x540")
+        try: win.transient(self._pres_win)
+        except Exception: pass
+
+        tk.Frame(win, bg=ACCENT, height=4).pack(fill="x")
+        tk.Label(win, text="⚙  Nastavení prezentace", font=("Georgia", 16, "bold"),
+                 bg=BG_DARK, fg=ACCENT).pack(anchor="w", padx=18, pady=(12, 8))
+
+        card = tk.Frame(win, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER)
+        card.pack(fill="both", expand=True, padx=16, pady=4)
+        inner = tk.Frame(card, bg=BG_CARD); inner.pack(padx=16, pady=14, fill="x")
+
+        def apply(*_):
+            if not self._pres_alive():
+                return
+            try:
+                self._pres_build_header()
+                data = self._pres_current_data()
+                self._pres_last_sig = self._pres_signature(data)
+                self._pres_build(data)
+            except Exception:
+                pass
+
+        r = tk.Frame(inner, bg=BG_CARD); r.pack(fill="x", pady=6)
+        tk.Label(r, text="Rychlost scrollování:", bg=BG_CARD, fg=TEXT_PRIMARY,
+                 font=FONT_BODY, width=20, anchor="w").pack(side="left")
+        tk.Scale(r, variable=self.pres_speed, from_=0.2, to=4.0, resolution=0.1,
+                 orient="horizontal", bg=BG_CARD, fg=TEXT_PRIMARY, troughcolor=BG_INPUT,
+                 highlightthickness=0, length=160).pack(side="left")
+
+        r = tk.Frame(inner, bg=BG_CARD); r.pack(fill="x", pady=6)
+        tk.Label(r, text="Pauza na konci (s):", bg=BG_CARD, fg=TEXT_PRIMARY,
+                 font=FONT_BODY, width=20, anchor="w").pack(side="left")
+        tk.Spinbox(r, textvariable=self.pres_end_pause, from_=0, to=30, increment=0.5, width=6,
+                   bg=BG_INPUT, fg=TEXT_PRIMARY, relief="flat", bd=0, font=FONT_BODY,
+                   highlightthickness=1, highlightbackground=BORDER,
+                   buttonbackground=BG_HOVER).pack(side="left")
+
+        tk.Frame(inner, bg=BORDER, height=1).pack(fill="x", pady=8)
+
+        def chk(text, var):
+            tk.Checkbutton(inner, text=text, variable=var, command=apply,
+                           bg=BG_CARD, fg=TEXT_PRIMARY, selectcolor=BG_INPUT,
+                           activebackground=BG_CARD, font=FONT_BODY, anchor="w"
+                           ).pack(fill="x", pady=2)
+
+        chk("Zobrazit datum v hlavičce", self.pres_show_date)
+        chk("Zobrazit hlavičku s informacemi o akci", self.pres_show_info)
+        chk("Zvýraznit finále (Top 6 + čára)", self.pres_hl_finale)
+        chk("Zvýraznit střelce s plnou položkou 🎯", self.pres_hl_top_item)
+        chk("Mini graf úspěšnosti u střelce", self.pres_show_graph)
+
+        r = tk.Frame(inner, bg=BG_CARD); r.pack(fill="x", pady=(10, 4))
+        tk.Label(r, text="Vlastní text v hlavičce:", bg=BG_CARD, fg=TEXT_PRIMARY,
+                 font=FONT_BODY, anchor="w").pack(anchor="w")
+        e = tk.Entry(r, textvariable=self.pres_info_text,
+                     bg=BG_INPUT, fg=TEXT_PRIMARY, insertbackground=TEXT_PRIMARY,
+                     relief="flat", bd=0, font=FONT_BODY,
+                     highlightthickness=1, highlightbackground=BORDER, highlightcolor=ACCENT)
+        e.pack(fill="x", pady=(2, 0))
+        e.bind("<KeyRelease>", apply)
+
+        bf = tk.Frame(win, bg=BG_DARK); bf.pack(side="bottom", fill="x", pady=10)
+        make_btn(bf, "Použít", apply, "primary", 12).pack(side="left", padx=(18, 6))
+        make_btn(bf, "Zavřít", win.destroy, "secondary", 10).pack(side="left", padx=2)
 
     def _close_presentation(self):
         for attr in ("_pres_update_job", "_pres_scroll_job"):
@@ -1556,6 +1738,11 @@ class ShootingApp(tk.Tk):
                 try: self.after_cancel(job)
                 except Exception: pass
                 setattr(self, attr, None)
+        sw = getattr(self, "_pres_settings_win", None)
+        if sw is not None:
+            try: sw.destroy()
+            except Exception: pass
+        self._pres_settings_win = None
         win = getattr(self, "_pres_win", None)
         if win is not None:
             try: win.destroy()
