@@ -1,4 +1,4 @@
-name: iOS build check (simulator)
+name: iOS build
 
 on:
   push:
@@ -12,7 +12,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-simulator:
+    name: Build check (simulator)
     runs-on: macos-15
     defaults:
       run:
@@ -36,3 +37,51 @@ jobs:
             -scheme ShootingResultsIOS \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO
+
+  build-unsigned-ipa:
+    name: Build unsigned .ipa (pro sideload přes AltStore)
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: ShootingResultsIOS
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app || true
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      # Sestaví appku pro reálné zařízení (arm64/iphoneos), ale BEZ podpisu -
+      # podpis udělá až AltServer tvým (free) Apple ID při instalaci na iPhone.
+      - name: Build for iOS device (unsigned)
+        run: |
+          xcodebuild build \
+            -project ShootingResultsIOS.xcodeproj \
+            -scheme ShootingResultsIOS \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Zapakovat do .ipa
+        run: |
+          set -e
+          APP_PATH="build/Build/Products/Release-iphoneos/ShootingResultsIOS.app"
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r -X ShootingResultsIOS-unsigned.ipa Payload
+          rm -rf Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShootingResultsIOS-unsigned-ipa
+          path: ShootingResultsIOS/ShootingResultsIOS-unsigned.ipa
+          retention-days: 14
