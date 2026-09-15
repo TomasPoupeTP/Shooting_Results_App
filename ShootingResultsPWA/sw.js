@@ -1,6 +1,14 @@
 // Service worker - offline cache appky (shell + vendor knihovny).
-// Verze zvyš při každé změně seznamu souborů, aby se vynutila aktualizace cache.
-const CACHE_NAME = "shooting-results-pwa-v1";
+//
+// Strategie: "network-first" - pokud appka má signál, vždy se použije
+// nejnovější verze ze serveru (a cache se s ní přepíše). Cache se použije
+// jen když síť selže (offline / bez signálu na střelnici). Díky tomu se po
+// nahrání opravy appka aktualizuje hned při dalším otevření se signálem,
+// místo aby donekonečna servírovala starou (rozbitou) verzi z cache.
+//
+// Verze zvyš při každé změně tohoto souboru nebo seznamu ASSETS, aby
+// prohlížeč spolehlivě poznal, že je k dispozici nová verze SW.
+const CACHE_NAME = "shooting-results-pwa-v2";
 
 const ASSETS = [
   "./",
@@ -45,17 +53,14 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request)
-        .then((resp) => {
-          if (resp && resp.ok) {
-            const copy = resp.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          }
-          return resp;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(event.request)
+      .then((resp) => {
+        if (resp && resp.ok) {
+          const copy = resp.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
+        return resp;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
