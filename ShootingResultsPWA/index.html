@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Shooting Results</title>
+<meta name="description" content="Správa střeleckých výsledků - los, zápis, výsledky, finále." />
+
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0D1117" />
+
+<!-- iOS "Add to Home Screen" podpora -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Výsledky" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" href="icons/icon-192.png" />
+
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app"></div>
+
+<nav class="tabbar" id="tabbar">
+  <button data-view="home"><span class="icon">🏠</span>Nastavení</button>
+  <button data-view="lottery"><span class="icon">🎲</span>Los</button>
+  <button data-view="entry"><span class="icon">✏️</span>Zápis</button>
+  <button data-view="results"><span class="icon">🏆</span>Výsledky</button>
+  <button data-view="finale"><span class="icon">🏅</span>Finále</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script>window.jsPDF = window.jspdf.jsPDF;</script>
+<script src="vendor/DejaVuSans-normal.js"></script>
+<script src="vendor/DejaVuSans-bold.js"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
