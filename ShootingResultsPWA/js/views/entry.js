@@ -28,8 +28,8 @@ export function renderEntry(root) {
   const controls = el("div", { class: "btn-row" }, [
     el("button", { class: "btn-ghost btn-sm", text: "+ Střelec", onclick: () => { store.addShooterRow(); renderTable(); } }),
     el("button", { class: "btn-ghost btn-sm", text: "− Střelec", onclick: () => { store.removeShooterRow(); renderTable(); } }),
-    el("button", { class: "btn-ghost btn-sm", text: "+ Položka", onclick: () => { store.addItemColumn(); renderEntry(root); } }),
-    el("button", { class: "btn-ghost btn-sm", text: "− Položka", onclick: () => { store.removeItemColumn(); renderEntry(root); } }),
+    el("button", { class: "btn-ghost btn-sm", text: "+ Položka", onclick: () => { store.addItemColumn(); clear(root); renderEntry(root); } }),
+    el("button", { class: "btn-ghost btn-sm", text: "− Položka", onclick: () => { store.removeItemColumn(); clear(root); renderEntry(root); } }),
     el("button", { class: "btn-success btn-sm", text: "💾 Uložit", onclick: () => { store.save(); toast(); } }),
     el("button", { class: "btn-ghost btn-sm", text: "🖥 Prezentace", onclick: () => startPresentation() }),
     el("button", {
