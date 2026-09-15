@@ -46,6 +46,15 @@ tabbar.addEventListener("click", (e) => {
 });
 
 if ("serviceWorker" in navigator) {
+  // Když nová verze service workeru převezme kontrolu (po aktualizaci appky),
+  // stránka se sama jednou obnoví - jinak by běžela dál na starém, už
+  // stažením nahrazeném JS kódu až do dalšího ručního refreshe.
+  let refreshingAfterSwUpdate = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshingAfterSwUpdate) return;
+    refreshingAfterSwUpdate = true;
+    window.location.reload();
+  });
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });

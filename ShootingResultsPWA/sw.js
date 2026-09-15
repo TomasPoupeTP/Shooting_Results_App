@@ -8,7 +8,7 @@
 //
 // Verze zvyš při každé změně tohoto souboru nebo seznamu ASSETS, aby
 // prohlížeč spolehlivě poznal, že je k dispozici nová verze SW.
-const CACHE_NAME = "shooting-results-pwa-v2";
+const CACHE_NAME = "shooting-results-pwa-v3";
 
 const ASSETS = [
   "./",
