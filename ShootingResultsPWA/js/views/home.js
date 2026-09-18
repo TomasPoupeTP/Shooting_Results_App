@@ -6,7 +6,7 @@ import { t } from "../i18n.js";
 
 export function renderHome(root) {
   const topbar = el("div", { class: "topbar" }, [
-    el("h1", { text: "🎯 " + (store.competitionName || t("Shooting Results")) }),
+    el("h1", { text: "🎯 " + t("Shooting Results App") }),
   ]);
 
   const view = el("div", { class: "view" });

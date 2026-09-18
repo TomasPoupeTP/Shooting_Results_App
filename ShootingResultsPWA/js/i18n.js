@@ -14,6 +14,7 @@ const EN = {
 
   // Home / Soutěž
   "Shooting Results": "Shooting Results",
+  "Shooting Results App": "Shooting Results App",
   "Název soutěže": "Competition name",
   "např. Krajský přebor 2026": "e.g. Regional Championship 2026",
   "Počet střelců": "Number of shooters",
