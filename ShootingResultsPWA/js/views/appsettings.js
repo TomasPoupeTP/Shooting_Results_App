@@ -1,11 +1,11 @@
-import { store } from "../state.js";
+import { store, Store } from "../state.js";
 import { DISCIPLINES, allDisciplines } from "../constants.js";
 import { el, clear } from "../dom.js";
 import { navigate, toast } from "../main.js";
 
 export function renderAppSettings(root) {
   const topbar = el("div", { class: "topbar" }, [
-    el("h1", { text: "⚙️ Nastavení appky" }),
+    el("h1", { text: "⚙️ Nastavení aplikace" }),
     el("button", { class: "btn-ghost btn-sm", text: "← Zpět", onclick: () => navigate("home") }),
   ]);
 
@@ -114,34 +114,64 @@ export function renderAppSettings(root) {
     catListWrap,
   ]);
 
-  // ── Kritéria řazení / rozstřelu ──────────────────────────────────────
-  const sortPreview = el("p", { style: "color:var(--text-muted);font-size:12px;margin-top:8px" });
-  function updateSortPreview() {
-    const dirText = store.app.sortReverseDirection
-      ? "od 1. položky k poslední"
-      : "od poslední položky k 1. (výchozí)";
-    const faultText = store.app.sortUseFault ? "ano" : "ne";
-    sortPreview.textContent = `Při shodě celkového součtu se porovnávají skóre položek ${dirText}. Pozice první chyby se do porovnání počítá: ${faultText}.`;
-  }
-  updateSortPreview();
-
-  const sortCard = el("div", { class: "card" }, [
-    el("div", { class: "radio-row" }, [
-      el("input", {
-        type: "checkbox", id: "sort-reverse", checked: store.app.sortReverseDirection,
-        onchange: (e) => { store.setSortConfig({ reverseDirection: e.target.checked }); updateSortPreview(); },
-      }),
-      el("label", { for: "sort-reverse", text: "Při shodě porovnávat od první položky (ne od poslední)" }),
-    ]),
-    el("div", { class: "radio-row" }, [
-      el("input", {
-        type: "checkbox", id: "sort-fault", checked: store.app.sortUseFault,
-        onchange: (e) => { store.setSortConfig({ useFault: e.target.checked }); updateSortPreview(); },
-      }),
-      el("label", { for: "sort-fault", text: "Zohledňovat pozici první chyby (sloupec 1.Ch.) při shodě" }),
-    ]),
-    sortPreview,
+  // ── Kritéria řazení při shodě - interaktivní "flow" bloků ────────────
+  // Uživatel může pořadí bloků měnit šipkami nahoru/dolů a jednotlivé
+  // bloky vypínat. Celkový součet a Rozstřel jsou pevné (vždy první/poslední
+  // krok), mezi nimi je pořadí a zapnutí bloků plně na uživateli.
+  const sortDirRow = el("div", { class: "radio-row" }, [
+    el("input", {
+      type: "checkbox", id: "sort-reverse", checked: store.app.sortReverseDirection,
+      onchange: (e) => { store.setSortDirection(e.target.checked); renderFlow(); },
+    }),
+    el("label", { for: "sort-reverse", text: "Položky procházet od 1. k poslední (místo od poslední k 1.)" }),
   ]);
+
+  const flowWrap = el("div", {});
+  const sortPreview = el("p", { style: "color:var(--text-muted);font-size:12px;margin-top:10px" });
+
+  function flowBlock(text, { locked = false } = {}) {
+    return el("div", {
+      class: "list-item", style: locked ? "opacity:.6" : "",
+    }, [
+      el("div", { class: "main title", text: (locked ? "🔒 " : "↕️ ") + text }),
+    ]);
+  }
+
+  function renderFlow() {
+    clear(flowWrap);
+    flowWrap.append(flowBlock("Celkový součet (vždy první)", { locked: true }));
+
+    store.app.sortBlocks.forEach((b, idx) => {
+      const row = el("div", { class: "list-item" }, [
+        el("div", { class: "checkbox-row", style: "flex:1" }, [
+          el("input", {
+            type: "checkbox", checked: b.enabled,
+            onchange: (e) => { store.toggleSortBlock(b.key, e.target.checked); renderFlow(); },
+          }),
+          el("label", { text: "↕️ " + Store.blockLabel(b.key) + (b.enabled ? "" : " (vypnuto)") }),
+        ]),
+        el("div", { class: "btn-row" }, [
+          el("button", {
+            class: "btn-ghost btn-sm", text: "↑", disabled: idx === 0,
+            onclick: () => { store.moveSortBlock(b.key, -1); renderFlow(); },
+          }),
+          el("button", {
+            class: "btn-ghost btn-sm", text: "↓", disabled: idx === store.app.sortBlocks.length - 1,
+            onclick: () => { store.moveSortBlock(b.key, 1); renderFlow(); },
+          }),
+        ]),
+      ]);
+      flowWrap.append(row);
+    });
+
+    flowWrap.append(flowBlock("Rozstřel (ruční zadání, pokud shoda přetrvá)", { locked: true }));
+
+    sortPreview.innerHTML = "Aktuální postup řazení:<br>" +
+      store.describeSortConfig().map((s, i) => `${i + 1}. ${s}`).join("<br>");
+  }
+  renderFlow();
+
+  const sortCard = el("div", { class: "card" }, [sortDirRow, flowWrap, sortPreview]);
 
   // ── Výchozí hodnoty pro nové soutěže ─────────────────────────────────
   const defDiscInput = el("select", {}, allDisciplines().map((d) =>

@@ -1,9 +1,9 @@
 # Shooting Results – PWA (Progressive Web App)
 
-Webová appka se **stejnou mechanikou jako desktop verze** (`shooting_results_app.py`),
+Webová aplikace se **stejnou mechanikou jako desktop verze** (`shooting_results_app.py`),
 ale běží přímo v prohlížeči (Safari na iPhonu/iPadu i kdekoliv jinde) - **bez
 Xcode, bez Macu, bez sideloadingu**. Stačí otevřít odkaz a přes Safari
-"Přidat na plochu" (Add to Home Screen), a chová se jako nativní appka
+"Přidat na plochu" (Add to Home Screen), a chová se jako nativní aplikace
 (vlastní ikona, bez adresního řádku, funguje i offline).
 
 Design je od základu nový, mechanika (nastavení, los, zápis, řazení,
@@ -31,10 +31,10 @@ rozhodčí) a grafy v prezentaci - dá se doplnit později.
 
 ## Offline a data
 
-- Appka je **PWA** - má manifest + service worker, po prvním načtení funguje
+- Aplikace je **PWA** - má manifest + service worker, po prvním načtení funguje
   i bez internetu (vč. generování PDF, které běží celé v prohlížeči).
 - Data (soutěž, los, zápis, výsledky) se ukládají do **localStorage v
-  telefonu/prohlížeči** - zůstanou tam i po zavření appky. Pro zálohu nebo
+  telefonu/prohlížeči** - zůstanou tam i po zavření aplikace. Pro zálohu nebo
   přenos na jiné zařízení použij **Export JSON / Import JSON** v Nastavení.
 - PDF export (los, výsledky, finále) běží čistě v prohlížeči (jsPDF +
   vendorovaný font DejaVu Sans kvůli české diakritice) - žádný server.
@@ -46,14 +46,14 @@ rozhodčí) a grafy v prezentaci - dá se doplnit později.
 Po pushnutí této branch se automaticky nasadí na GitHub Pages (viz
 `.github/workflows/deploy-pwa.yml`) - **pokud má repozitář v Settings →
 Pages nastavený zdroj "GitHub Actions"** (jednorázové nastavení, musí ho
-udělat vlastník repa). Pak appka běží na `https://<uzivatel>.github.io/<repo>/`.
+udělat vlastník repa). Pak aplikace běží na `https://<uzivatel>.github.io/<repo>/`.
 
 Na iPhonu: otevři tu adresu v **Safari** → tlačítko Sdílet → **Přidat na
 plochu**.
 
 ### Lokálně (na počítači)
 
-Potřebuješ jen jednoduchý statický server (kvůli ES modulům appka nejde
+Potřebuješ jen jednoduchý statický server (kvůli ES modulům aplikace nejde
 spustit přímo z `file://`):
 
 ```bash
@@ -70,10 +70,10 @@ ShootingResultsPWA/
   index.html
   manifest.webmanifest
   sw.js                      # service worker (offline cache)
-  icons/                     # PWA ikony (vygenerované, styl desktop appky)
+  icons/                     # PWA ikony (vygenerované, styl desktop aplikace)
   css/style.css
   js/
-    state.js                 # stav appky + řazení/rozstřel/finále logika (1:1 podle Pythonu)
+    state.js                 # stav aplikace + řazení/rozstřel/finále logika (1:1 podle Pythonu)
     constants.js              # kategorie, disciplíny
     dom.js                     # drobný DOM helper
     pdf.js                      # export do PDF (jsPDF + AutoTable)

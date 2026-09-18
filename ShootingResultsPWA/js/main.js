@@ -65,7 +65,7 @@ if (window.matchMedia) {
 }
 
 if ("serviceWorker" in navigator) {
-  // Když nová verze service workeru převezme kontrolu (po aktualizaci appky),
+  // Když nová verze service workeru převezme kontrolu (po aktualizaci aplikace),
   // stránka se sama jednou obnoví - jinak by běžela dál na starém, už
   // stažením nahrazeném JS kódu až do dalšího ručního refreshe.
   let refreshingAfterSwUpdate = false;

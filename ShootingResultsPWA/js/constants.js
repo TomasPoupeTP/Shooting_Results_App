@@ -1,5 +1,5 @@
 // Základní (výchozí) hodnoty - stejné jako v desktop verzi (shooting_results_app.py).
-// Uživatel si může přidat vlastní disciplíny/kategorie navíc (viz Nastavení appky) -
+// Uživatel si může přidat vlastní disciplíny/kategorie navíc (viz Nastavení aplikace) -
 // ty se ukládají do store.app.customDisciplines / store.app.customCategories a
 // mísí se s touhle základní sadou pomocí allDisciplines()/allCategories() níže.
 import { store } from "./state.js";

@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --bg-dark: #0D1117;
   --bg-card: #161B22;
   --bg-input: #1C2128;
@@ -21,6 +22,7 @@
 
 /* Světlý motiv - stejné proměnné, jiné hodnoty (přepíná se atributem na <html>). */
 :root[data-theme="light"] {
+  color-scheme: light;
   --bg-dark: #F3F4F6;
   --bg-card: #FFFFFF;
   --bg-input: #F0F1F3;
@@ -96,7 +98,7 @@ h1, h2, h3 { margin: 0; }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .field label { font-size: 13px; color: var(--text-muted); }
 
-input[type="text"], input[type="number"], select, textarea {
+input[type="text"], input[type="number"], input[type="date"], select, textarea {
   background: var(--bg-input);
   color: var(--text-primary);
   border: 1px solid var(--border);

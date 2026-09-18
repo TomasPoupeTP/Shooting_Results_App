@@ -1,7 +1,7 @@
-// Centrální stav appky + veškerá "business logika" 1:1 podle desktop verze
+// Centrální stav aplikace + veškerá "business logika" 1:1 podle desktop verze
 // (shooting_results_app.py): řazení, detekce shody, rozstřel, finále, statistika.
 //
-// Datový model (v2): appka drží víc soutěží najednou ("competitions"),
+// Datový model (v2): aplikace drží víc soutěží najednou ("competitions"),
 // mezi kterými lze přepínat, plus samostatné "appSettings" (vzhled, vlastní
 // disciplíny/kategorie, výchozí hodnoty, kritéria řazení) sdílené napříč
 // všemi soutěžemi.
@@ -45,13 +45,22 @@ function blankItems(row, ni) {
   return row;
 }
 
+/** Výchozí pořadí/zapnutí kritérií rozstřelu při shodě celkového součtu.
+ * Uživatel může bloky v Nastavení aplikace přeskládat i vypnout (viz sortBlocks). */
+function defaultSortBlocks() {
+  return [
+    { key: "score", enabled: true },  // skóre položek
+    { key: "fault", enabled: true },  // pozice první chyby (1.Ch.)
+  ];
+}
+
 function defaultAppSettings() {
   return {
     theme: "system",              // "dark" | "light" | "system"
     customDisciplines: [],        // string[]
     customCategories: [],         // {name, short}[]
-    sortReverseDirection: false,  // false = od poslední položky k první (desktop chování)
-    sortUseFault: true,           // brát v potaz "1. chybu" při shodě skóre
+    sortReverseDirection: false,  // false = položky se procházejí od poslední k 1. (desktop chování)
+    sortBlocks: defaultSortBlocks(),
     defaultDiscipline: "Americký TRAP",
     defaultMaxScore: 25,
     defaultRefereeName: "",
@@ -78,7 +87,7 @@ function defaultCompetitionData() {
   };
 }
 
-class Store {
+export class Store {
   constructor() {
     this.app = defaultAppSettings();
     this.competitions = [];
@@ -194,7 +203,7 @@ class Store {
     this.notify();
   }
 
-  // ── Nastavení appky (vzhled, vlastní disciplíny/kategorie, výchozí hodnoty, řazení) ──
+  // ── Nastavení aplikace (vzhled, vlastní disciplíny/kategorie, výchozí hodnoty, řazení) ──
   setTheme(theme) { this.app.theme = theme; this.save(); this.applyTheme(); }
 
   applyTheme() {
@@ -234,9 +243,23 @@ class Store {
     this.save();
   }
 
-  setSortConfig({ reverseDirection, useFault }) {
-    if (reverseDirection !== undefined) this.app.sortReverseDirection = reverseDirection;
-    if (useFault !== undefined) this.app.sortUseFault = useFault;
+  setSortDirection(reverseDirection) {
+    this.app.sortReverseDirection = !!reverseDirection;
+    this.save();
+  }
+
+  toggleSortBlock(key, enabled) {
+    const b = this.app.sortBlocks.find((x) => x.key === key);
+    if (b) { b.enabled = enabled; this.save(); }
+  }
+
+  /** Posune blok o jednu pozici nahoru (dir=-1) nebo dolů (dir=1) v pořadí kritérií. */
+  moveSortBlock(key, dir) {
+    const blocks = this.app.sortBlocks;
+    const i = blocks.findIndex((x) => x.key === key);
+    const j = i + dir;
+    if (i === -1 || j < 0 || j >= blocks.length) return;
+    [blocks[i], blocks[j]] = [blocks[j], blocks[i]];
     this.save();
   }
 
@@ -252,6 +275,15 @@ class Store {
   fromJSON(d) {
     if (!d || typeof d !== "object") return;
     this.app = { ...defaultAppSettings(), ...(d.app || {}) };
+    // Migrace ze staršího formátu (sortUseFault: boolean) na sortBlocks[].
+    if (!Array.isArray(this.app.sortBlocks) || !this.app.sortBlocks.length) {
+      this.app.sortBlocks = defaultSortBlocks();
+      if (d.app && d.app.sortUseFault === false) {
+        const fb = this.app.sortBlocks.find((b) => b.key === "fault");
+        if (fb) fb.enabled = false;
+      }
+    }
+    delete this.app.sortUseFault;
     this.competitions = Array.isArray(d.competitions) && d.competitions.length
       ? d.competitions.map((c) => ({
           id: c.id || uid(),
@@ -277,7 +309,7 @@ class Store {
       if (raw) { this.fromJSON(JSON.parse(raw)); return; }
     } catch (e) { console.warn("Načtení selhalo:", e); }
 
-    // Migrace ze starého formátu appky (jedna soutěž bez appSettings).
+    // Migrace ze starého formátu aplikace (jedna soutěž bez appSettings).
     try {
       const oldRaw = localStorage.getItem(OLD_STORAGE_KEY);
       if (oldRaw) {
@@ -468,18 +500,41 @@ class Store {
       : Array.from({ length: ni }, (_, i) => ni - i);       // ni..1 (od poslední - výchozí)
   }
 
-  /** Klíč pro řazení - pole čísel, nižší = lepší (vzestupné řazení). */
+  static blockLabel(key) {
+    return key === "score" ? "Skóre položek" : key === "fault" ? "Pozice první chyby (1.Ch.)" : key;
+  }
+
+  /** Srozumitelný popis aktuálního postupu řazení - použito v Nápovědě i v Nastavení aplikace. */
+  describeSortConfig() {
+    const dirText = this.app.sortReverseDirection ? "od 1. položky k poslední" : "od poslední položky k 1.";
+    const steps = ["Celkový součet (vyšší vyhrává)"];
+    for (const b of this.app.sortBlocks) {
+      if (b.enabled) steps.push(`${Store.blockLabel(b.key)} (${dirText})`);
+    }
+    steps.push("Rozstřel (ruční zadání, pokud shoda přetrvá)");
+    return steps;
+  }
+
+  /** Hodnota jednoho bloku kritéria pro jednu položku (nižší = lepší). */
+  _blockValue(block, d, i) {
+    if (block.key === "score") return -num(d[`item${i}_score`], 0);
+    if (block.key === "fault") {
+      const raw = d[`item${i}_fault`];
+      return -(raw ? num(raw, -1) : -1);
+    }
+    return 0;
+  }
+
+  /** Klíč pro řazení - pole čísel, nižší = lepší (vzestupné řazení).
+   * Nejprve celkový součet, pak postupně zapnuté bloky (v uživatelem
+   * zvoleném pořadí), každý blok projde všechny položky ve zvoleném směru. */
   sortKey(d, ni) {
     const total = num(d.total, 0);
     const tb = [];
-    for (const i of this.tieBreakOrder(ni)) {
-      const sc = num(d[`item${i}_score`], 0);
-      tb.push(-sc);
-      if (this.app.sortUseFault) {
-        const raw = d[`item${i}_fault`];
-        const ft = raw ? num(raw, -1) : -1;
-        tb.push(-ft);
-      }
+    const order = this.tieBreakOrder(ni);
+    for (const block of this.app.sortBlocks) {
+      if (!block.enabled) continue;
+      for (const i of order) tb.push(this._blockValue(block, d, i));
     }
     return [-total, ...tb];
   }
@@ -563,14 +618,10 @@ class Store {
     const base = num(d.total, 0);
     const fin = num(d.finale_score, 0);
     const tb = [];
-    for (const i of this.tieBreakOrder(ni)) {
-      const sc = num(d[`item${i}_score`], 0);
-      tb.push(-sc);
-      if (this.app.sortUseFault) {
-        const raw = d[`item${i}_fault`];
-        const ft = raw ? num(raw, -1) : -1;
-        tb.push(-ft);
-      }
+    const order = this.tieBreakOrder(ni);
+    for (const block of this.app.sortBlocks) {
+      if (!block.enabled) continue;
+      for (const i of order) tb.push(this._blockValue(block, d, i));
     }
     return [-(base + fin), ...tb, -fin];
   }

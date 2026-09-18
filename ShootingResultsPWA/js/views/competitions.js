@@ -75,7 +75,7 @@ export function renderCompetitions(root) {
   });
 
   view.append(
-    el("p", { style: "color:var(--text-muted);font-size:13px", text: "Appka umí držet víc rozpracovaných/dokončených soutěží najednou. Klikni na soutěž pro přepnutí." }),
+    el("p", { style: "color:var(--text-muted);font-size:13px", text: "Aplikace umí držet víc rozpracovaných/dokončených soutěží najednou. Klikni na soutěž pro přepnutí." }),
     listWrap,
     addBtn,
   );

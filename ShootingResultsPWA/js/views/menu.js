@@ -22,7 +22,7 @@ export function openMenu() {
     ]),
     el("button", { class: "sheet-btn", onclick: () => go("appsettings") }, [
       el("span", { class: "icon", text: "⚙️" }),
-      el("span", {}, "Nastavení appky"),
+      el("span", {}, "Nastavení aplikace"),
     ]),
     el("button", { class: "sheet-btn", onclick: () => go("help") }, [
       el("span", { class: "icon", text: "ℹ️" }),

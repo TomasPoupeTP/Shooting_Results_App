@@ -5,7 +5,7 @@ import { navigate, toast } from "../main.js";
 
 export function renderHome(root) {
   const topbar = el("div", { class: "topbar" }, [
-    el("h1", { text: "🎯 " + (store.competitionName || "SHOOTING RESULTS APP") }),
+    el("h1", { text: "🎯 " + (store.competitionName || "Shooting Results") }),
   ]);
 
   const view = el("div", { class: "view" });
@@ -76,7 +76,7 @@ export function renderHome(root) {
   const refereeField = el("div", { class: "field" }, [
     el("label", { text: "Hlavní rozhodčí" }),
     el("input", {
-      type: "text", value: store.refereeName, placeholder: "Jméno (zobrazí se v PDF)",
+      type: "text", value: store.refereeName, placeholder: "Jméno",
       oninput: (e) => { store.refereeName = e.target.value; },
       onblur: () => store.save(),
     }),

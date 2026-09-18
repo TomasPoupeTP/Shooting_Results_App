@@ -1,14 +1,14 @@
-// Service worker - offline cache appky (shell + vendor knihovny).
+// Service worker - offline cache aplikace (shell + vendor knihovny).
 //
-// Strategie: "network-first" - pokud appka má signál, vždy se použije
+// Strategie: "network-first" - pokud má aplikace signál, vždy se použije
 // nejnovější verze ze serveru (a cache se s ní přepíše). Cache se použije
 // jen když síť selže (offline / bez signálu na střelnici). Díky tomu se po
-// nahrání opravy appka aktualizuje hned při dalším otevření se signálem,
+// nahrání opravy aplikace aktualizuje hned při dalším otevření se signálem,
 // místo aby donekonečna servírovala starou (rozbitou) verzi z cache.
 //
 // Verze zvyš při každé změně tohoto souboru nebo seznamu ASSETS, aby
 // prohlížeč spolehlivě poznal, že je k dispozici nová verze SW.
-const CACHE_NAME = "shooting-results-pwa-v4";
+const CACHE_NAME = "shooting-results-pwa-v5";
 
 const ASSETS = [
   "./",
