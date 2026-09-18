@@ -2,11 +2,12 @@ import { store, Store } from "../state.js";
 import { DISCIPLINES, allDisciplines } from "../constants.js";
 import { el, clear } from "../dom.js";
 import { navigate, toast } from "../main.js";
+import { t } from "../i18n.js";
 
 export function renderAppSettings(root) {
   const topbar = el("div", { class: "topbar" }, [
-    el("h1", { text: "⚙️ Nastavení aplikace" }),
-    el("button", { class: "btn-ghost btn-sm", text: "← Zpět", onclick: () => navigate("home") }),
+    el("h1", { text: t("⚙️ Nastavení aplikace") }),
+    el("button", { class: "btn-ghost btn-sm", text: t("← Zpět"), onclick: () => navigate("home") }),
   ]);
 
   const view = el("div", { class: "view" });
@@ -25,18 +26,36 @@ export function renderAppSettings(root) {
           type: "radio", name: "theme", id: `theme-${val}`, checked: store.app.theme === val,
           onchange: () => { store.setTheme(val); },
         }),
-        el("label", { for: `theme-${val}`, text: label }),
+        el("label", { for: `theme-${val}`, text: t(label) }),
+      ])
+    )
+  );
+
+  // ── Jazyk ──────────────────────────────────────────────────────────────
+  const langCard = el("div", { class: "card" });
+  const langOptions = [
+    ["cs", "Čeština"],
+    ["en", "Angličtina"],
+  ];
+  langCard.append(
+    ...langOptions.map(([val, label]) =>
+      el("div", { class: "radio-row" }, [
+        el("input", {
+          type: "radio", name: "language", id: `lang-${val}`, checked: (store.app.language || "cs") === val,
+          onchange: () => { store.app.language = val; store.save(); navigate("appsettings"); },
+        }),
+        el("label", { for: `lang-${val}`, text: t(label) }),
       ])
     )
   );
 
   // ── Vlastní disciplíny ───────────────────────────────────────────────
-  const discInput = el("input", { type: "text", placeholder: "Název nové disciplíny" });
+  const discInput = el("input", { type: "text", placeholder: t("Název nové disciplíny") });
   const discListWrap = el("div", {});
   function renderDiscList() {
     clear(discListWrap);
     if (!store.app.customDisciplines.length) {
-      discListWrap.append(el("p", { style: "color:var(--text-muted);font-size:13px", text: "Zatím žádné vlastní disciplíny." }));
+      discListWrap.append(el("p", { style: "color:var(--text-muted);font-size:13px", text: t("Zatím žádné vlastní disciplíny.") }));
       return;
     }
     store.app.customDisciplines.forEach((name) => {
@@ -55,7 +74,7 @@ export function renderAppSettings(root) {
     el("div", { class: "row" }, [
       discInput,
       el("button", {
-        class: "btn-primary btn-sm", text: "+ Přidat",
+        class: "btn-primary btn-sm", text: t("+ Přidat"),
         onclick: () => {
           const v = discInput.value.trim();
           if (!v) return;
@@ -72,20 +91,20 @@ export function renderAppSettings(root) {
   ]);
 
   // ── Vlastní kategorie ────────────────────────────────────────────────
-  const catNameInput = el("input", { type: "text", placeholder: "Název kategorie" });
-  const catShortInput = el("input", { type: "text", placeholder: "Zkratka (1-3 znaky)", style: "width:110px" });
+  const catNameInput = el("input", { type: "text", placeholder: t("Název kategorie") });
+  const catShortInput = el("input", { type: "text", placeholder: t("Zkratka (1-3 znaky)"), style: "width:110px" });
   const catListWrap = el("div", {});
   function renderCatList() {
     clear(catListWrap);
     if (!store.app.customCategories.length) {
-      catListWrap.append(el("p", { style: "color:var(--text-muted);font-size:13px", text: "Zatím žádné vlastní kategorie." }));
+      catListWrap.append(el("p", { style: "color:var(--text-muted);font-size:13px", text: t("Zatím žádné vlastní kategorie.") }));
       return;
     }
     store.app.customCategories.forEach((c) => {
       catListWrap.append(el("div", { class: "list-item" }, [
         el("div", { class: "main" }, [
           el("span", { class: "title", text: c.name }),
-          el("span", { class: "sub", text: `zkratka: ${c.short}` }),
+          el("span", { class: "sub", text: `${t("zkratka:")} ${c.short}` }),
         ]),
         el("button", {
           class: "btn-ghost btn-sm", text: "🗑",
@@ -100,7 +119,7 @@ export function renderAppSettings(root) {
     el("div", { class: "row" }, [
       catNameInput, catShortInput,
       el("button", {
-        class: "btn-primary btn-sm", text: "+ Přidat",
+        class: "btn-primary btn-sm", text: t("+ Přidat"),
         onclick: () => {
           const v = catNameInput.value.trim();
           if (!v) return;
@@ -123,7 +142,7 @@ export function renderAppSettings(root) {
       type: "checkbox", id: "sort-reverse", checked: store.app.sortReverseDirection,
       onchange: (e) => { store.setSortDirection(e.target.checked); renderFlow(); },
     }),
-    el("label", { for: "sort-reverse", text: "Položky procházet od 1. k poslední (místo od poslední k 1.)" }),
+    el("label", { for: "sort-reverse", text: t("Položky procházet od 1. k poslední (místo od poslední k 1.)") }),
   ]);
 
   const flowWrap = el("div", {});
@@ -139,7 +158,7 @@ export function renderAppSettings(root) {
 
   function renderFlow() {
     clear(flowWrap);
-    flowWrap.append(flowBlock("Celkový součet (vždy první)", { locked: true }));
+    flowWrap.append(flowBlock(t("Celkový součet (vždy první)"), { locked: true }));
 
     store.app.sortBlocks.forEach((b, idx) => {
       const row = el("div", { class: "list-item" }, [
@@ -148,7 +167,7 @@ export function renderAppSettings(root) {
             type: "checkbox", checked: b.enabled,
             onchange: (e) => { store.toggleSortBlock(b.key, e.target.checked); renderFlow(); },
           }),
-          el("label", { text: "↕️ " + Store.blockLabel(b.key) + (b.enabled ? "" : " (vypnuto)") }),
+          el("label", { text: "↕️ " + t(Store.blockLabel(b.key)) + (b.enabled ? "" : " " + t("(vypnuto)")) }),
         ]),
         el("div", { class: "btn-row" }, [
           el("button", {
@@ -164,10 +183,10 @@ export function renderAppSettings(root) {
       flowWrap.append(row);
     });
 
-    flowWrap.append(flowBlock("Rozstřel (ruční zadání, pokud shoda přetrvá)", { locked: true }));
+    flowWrap.append(flowBlock(t("Rozstřel (ruční zadání, pokud shoda přetrvá)"), { locked: true }));
 
-    sortPreview.innerHTML = "Aktuální postup řazení:<br>" +
-      store.describeSortConfig().map((s, i) => `${i + 1}. ${s}`).join("<br>");
+    sortPreview.innerHTML = t("Aktuální postup řazení:") + "<br>" +
+      store.describeSortConfig(t).map((s, i) => `${i + 1}. ${s}`).join("<br>");
   }
   renderFlow();
 
@@ -177,23 +196,23 @@ export function renderAppSettings(root) {
   const defDiscInput = el("select", {}, allDisciplines().map((d) =>
     el("option", { value: d, selected: d === store.app.defaultDiscipline, text: d })));
   const defMaxInput = el("input", { type: "number", value: store.app.defaultMaxScore, min: "1" });
-  const defRefInput = el("input", { type: "text", value: store.app.defaultRefereeName, placeholder: "Jméno hlavního rozhodčího" });
+  const defRefInput = el("input", { type: "text", value: store.app.defaultRefereeName, placeholder: t("Jméno hlavního rozhodčího") });
 
   const defaultsCard = el("div", { class: "card" }, [
     el("div", { class: "field" }, [
-      el("label", { text: "Výchozí disciplína" }),
+      el("label", { text: t("Výchozí disciplína") }),
       defDiscInput,
     ]),
     el("div", { class: "field" }, [
-      el("label", { text: "Výchozí max. terčů/položku" }),
+      el("label", { text: t("Výchozí max. terčů/položku") }),
       defMaxInput,
     ]),
     el("div", { class: "field" }, [
-      el("label", { text: "Výchozí jméno hlavního rozhodčího" }),
+      el("label", { text: t("Výchozí jméno hlavního rozhodčího") }),
       defRefInput,
     ]),
     el("button", {
-      class: "btn-primary btn-sm", text: "Uložit výchozí hodnoty",
+      class: "btn-primary btn-sm", text: t("Uložit výchozí hodnoty"),
       onclick: () => {
         store.app.defaultDiscipline = defDiscInput.value.trim() || store.app.defaultDiscipline;
         store.app.defaultMaxScore = parseInt(defMaxInput.value || "25", 10) || 25;
@@ -205,11 +224,12 @@ export function renderAppSettings(root) {
   ]);
 
   view.append(
-    el("div", { class: "section-title", text: "Vzhled" }), themeCard,
-    el("div", { class: "section-title", text: "Vlastní disciplíny" }), discCard,
-    el("div", { class: "section-title", text: "Vlastní kategorie" }), catCard,
-    el("div", { class: "section-title", text: "Kritéria řazení při shodě" }), sortCard,
-    el("div", { class: "section-title", text: "Výchozí hodnoty pro nové soutěže" }), defaultsCard,
+    el("div", { class: "section-title", text: t("Vzhled") }), themeCard,
+    el("div", { class: "section-title", text: t("Jazyk") }), langCard,
+    el("div", { class: "section-title", text: t("Vlastní disciplíny") }), discCard,
+    el("div", { class: "section-title", text: t("Vlastní kategorie") }), catCard,
+    el("div", { class: "section-title", text: t("Kritéria řazení při shodě") }), sortCard,
+    el("div", { class: "section-title", text: t("Výchozí hodnoty pro nové soutěže") }), defaultsCard,
   );
   root.append(topbar, view);
 }

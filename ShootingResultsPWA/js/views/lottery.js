@@ -2,24 +2,25 @@ import { store } from "../state.js";
 import { el, clear } from "../dom.js";
 import { navigate, toast } from "../main.js";
 import { exportLotteryPdf } from "../pdf.js";
+import { t } from "../i18n.js";
 
 export function renderLottery(root) {
   const topbar = el("div", { class: "topbar" }, [
-    el("h1", { text: `📋 ${store.competitionName || "Soutěž"} – Los` }),
-    el("button", { class: "btn-ghost btn-sm", text: "← Zpět", onclick: () => navigate("home") }),
+    el("h1", { text: `📋 ${store.competitionName || t("Soutěž")} – ${t("Los")}` }),
+    el("button", { class: "btn-ghost btn-sm", text: t("← Zpět"), onclick: () => navigate("home") }),
   ]);
 
   const view = el("div", { class: "view" });
 
-  const surnameInput = el("input", { type: "text", placeholder: "Příjmení" });
-  const nameInput = el("input", { type: "text", placeholder: "Jméno" });
-  const prefixInput = el("input", { type: "text", placeholder: "Prefix (skupina)" });
+  const surnameInput = el("input", { type: "text", placeholder: t("Příjmení") });
+  const nameInput = el("input", { type: "text", placeholder: t("Jméno") });
+  const prefixInput = el("input", { type: "text", placeholder: t("Prefix (skupina)") });
 
   const addForm = el("div", { class: "card" }, [
     el("div", { class: "row" }, [surnameInput, nameInput, prefixInput]),
     el("div", { class: "btn-row", style: "margin-top:10px" }, [
       el("button", {
-        class: "btn-primary", text: "+ Přidat",
+        class: "btn-primary", text: t("+ Přidat"),
         onclick: () => {
           const sn = surnameInput.value.trim(), nm = nameInput.value.trim();
           if (!sn || !nm) { toast("Vyplň příjmení a jméno"); return; }
@@ -35,34 +36,35 @@ export function renderLottery(root) {
   const listWrap = el("div", { class: "table-wrap" });
   const controls = el("div", { class: "btn-row" }, [
     el("button", {
-      class: "btn-ghost", text: "Seřadit dle čísel",
+      class: "btn-ghost", text: t("Seřadit dle čísel"),
       onclick: () => { store.sortLotteryByStartNum(); renderList(); },
     }),
     el("button", {
-      class: "btn-ghost", text: "🎲 Auto-Los",
+      class: "btn-ghost", text: t("🎲 Auto-Los"),
       onclick: () => {
         if (!store.lotteryList.length) { toast("Nejdřív přidej střelce"); return; }
         const ok = store.autoLos(6);
         if (!ok) {
-          alert("Nelze rozlosovat: nějaký prefix má víc střelců než je počet šestic. Uber je nebo přidej další účastníky.");
+          alert(t("Nelze rozlosovat: nějaký prefix má víc střelců než je počet šestic. Uber je nebo přidej další účastníky."));
           return;
         }
         renderList();
       },
     }),
     el("button", {
-      class: "btn-ghost", text: "🖨 Tisk listiny",
+      class: "btn-ghost", text: t("🖨 Tisk listiny"),
       onclick: () => {
         if (!store.lotteryList.length) { toast("Nejdřív přidej střelce"); return; }
         exportLotteryPdf();
       },
     }),
     el("button", {
-      class: "btn-primary", text: "✓ Použít v zápisu",
+      class: "btn-primary", text: t("✓ Použít v zápisu"),
       onclick: () => {
         if (!store.lotteryList.length) { toast("Nejdřív přidej střelce"); return; }
         const n = store.applyLotteryToEntry();
-        toast(`${n} střelců vloženo do zápisu`);
+        toast(`${n} ${t("střelců vloženo do zápisu")}`);
+        store.unlockTab("entry");
         navigate("entry");
       },
     }),
@@ -71,13 +73,13 @@ export function renderLottery(root) {
   function renderList() {
     clear(listWrap);
     if (!store.lotteryList.length) {
-      listWrap.append(el("div", { class: "empty-state", text: "Zatím žádní střelci. Přidej je výše." }));
+      listWrap.append(el("div", { class: "empty-state", text: t("Zatím žádní střelci. Přidej je výše.") }));
       return;
     }
     const table = el("table");
     table.append(el("thead", {}, el("tr", {}, [
-      el("th", { text: "Start.č" }), el("th", { text: "Příjmení" }), el("th", { text: "Jméno" }),
-      el("th", { text: "Prefix" }), el("th", { text: "" }),
+      el("th", { text: t("Start.č") }), el("th", { text: t("Příjmení") }), el("th", { text: t("Jméno") }),
+      el("th", { text: t("Prefix") }), el("th", { text: "" }),
     ])));
     const tbody = el("tbody");
     store.lotteryList.forEach((d, i) => {

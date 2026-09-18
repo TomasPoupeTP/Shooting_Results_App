@@ -1,15 +1,16 @@
 import { store } from "../state.js";
 import { el } from "../dom.js";
 import { navigate } from "../main.js";
+import { t } from "../i18n.js";
 
 function sortExplanationHtml() {
-  const steps = store.describeSortConfig();
+  const steps = store.describeSortConfig(t);
   const items = steps.map((s) => `<li>${s}</li>`).join("");
   return `
-    <p>Pořadí se počítá krok za krokem, dokud nenajde rozdíl mezi střelci:</p>
+    <p>${t("Pořadí se počítá krok za krokem, dokud nenajde rozdíl mezi střelci:")}</p>
     <ol>${items}</ol>
-    <p>Aplikace barevně zvýrazní řádky, kde je shoda potřeba vyřešit rozstřelem (oranžově), a prvních 6 v pořadí (zeleně).</p>
-    <p>Pořadí kroků, jejich zapnutí i směr procházení položek si můžeš plně nastavit v <strong>Nastavení aplikace</strong> (šipkami nahoru/dolů přeskládáš kroky, zaškrtávátkem je vypneš).</p>
+    <p>${t("Aplikace barevně zvýrazní řádky, kde je shoda potřeba vyřešit rozstřelem (oranžově), a prvních 6 v pořadí (zeleně).")}</p>
+    <p>${t("Pořadí kroků, jejich zapnutí i směr procházení položek si můžeš plně nastavit v")} <strong>${t("Nastavení aplikace")}</strong> ${t("(šipkami nahoru/dolů přeskládáš kroky, zaškrtávátkem je vypneš).")}</p>
   `;
 }
 
@@ -21,15 +22,32 @@ async function fetchVersion() {
   } catch (e) { return null; }
 }
 
-export function renderHelp(root) {
-  const topbar = el("div", { class: "topbar" }, [
-    el("h1", { text: "ℹ️ Nápověda" }),
-    el("button", { class: "btn-ghost btn-sm", text: "← Zpět", onclick: () => navigate("home") }),
-  ]);
+function helpBodyHtml() {
+  const isEn = store.app.language === "en";
+  if (isEn) {
+    return `
+      <h3>🎯 How to use the app</h3>
+      <ol>
+        <li><strong>Competition</strong> - fill in the name, discipline, number of rounds, max. score/round and optionally enable Categories and Final.</li>
+        <li><strong>Draw</strong> - add shooters (surname, name, optionally a prefix for grouping into sixes), then either sort manually or use <em>Auto-draw</em> (splits shooters into sixes so that two with the same prefix aren't together). The <em>Use in scoring</em> button transfers the list to Scoring.</li>
+        <li><strong>Scoring</strong> - enter the score and first-miss position for each round. The total is calculated automatically. The <em>Presentation</em> button shows a live-updating ranking table on a big screen.</li>
+        <li><strong>Results</strong> - the <em>Sort →</em> button on Scoring calculates the ranking. This is also where shoot-offs are resolved (see below) and PDFs are printed.</li>
+        <li><strong>Final</strong> (if enabled) - automatically picks the top 6 (+ ties), you enter the final round, the app calculates the total of qualification + final.</li>
+      </ol>
 
-  const view = el("div", { class: "view help-block" });
+      <h3>🏆 How ranking and shoot-offs work</h3>
+      <div id="sort-explanation">${sortExplanationHtml()}</div>
 
-  const html = `
+      <h3>💾 Data storage</h3>
+      <p>The app has no server - everything is stored only on this phone/browser (localStorage). The app can hold multiple competitions at once (switch via the menu <em>More → Switch competitions</em>). To back up or transfer to another device, use <em>Export JSON</em> / <em>Import JSON</em> in the competition settings.</p>
+      <p>The app also works <strong>offline</strong> (including PDF generation) thanks to a service worker - after the first load it can be used even without a signal.</p>
+
+      <h3>© Copyright</h3>
+      <p>Shooting Results - PWA version.<br>© 2026 Tomáš Poupě. All rights reserved.</p>
+      <p id="version-line" style="color:var(--text-muted);font-size:12px">${t("Verze: načítám…")}</p>
+    `;
+  }
+  return `
     <h3>🎯 Jak aplikaci používat</h3>
     <ol>
       <li><strong>Soutěž</strong> - vyplň název, disciplínu, počet položek, max. skóre/položku a případně zapni Kategorie a Finále.</li>
@@ -48,10 +66,20 @@ export function renderHelp(root) {
 
     <h3>© Autorská práva</h3>
     <p>Shooting Results - PWA verze.<br>© 2026 Tomáš Poupě. Všechna práva vyhrazena.</p>
-    <p id="version-line" style="color:var(--text-muted);font-size:12px">Verze: načítám…</p>
+    <p id="version-line" style="color:var(--text-muted);font-size:12px">${t("Verze: načítám…")}</p>
   `;
+}
+
+export function renderHelp(root) {
+  const topbar = el("div", { class: "topbar" }, [
+    el("h1", { text: t("ℹ️ Nápověda") }),
+    el("button", { class: "btn-ghost btn-sm", text: t("← Zpět"), onclick: () => navigate("home") }),
+  ]);
+
+  const view = el("div", { class: "view help-block" });
+
   const content = el("div");
-  content.innerHTML = html;
+  content.innerHTML = helpBodyHtml();
 
   view.append(content);
   root.append(topbar, view);
@@ -61,9 +89,9 @@ export function renderHelp(root) {
     if (!line) return;
     if (v && v.commit) {
       const date = v.date ? new Date(v.date).toLocaleDateString("cs-CZ") : "";
-      line.textContent = `Verze: ${v.commit}${date ? " · " + date : ""}`;
+      line.textContent = `${t("Verze:")} ${v.commit}${date ? " · " + date : ""}`;
     } else {
-      line.textContent = "Verze: vývojová (mimo nasazení z GitHub Pages)";
+      line.textContent = t("Verze: vývojová (mimo nasazení z GitHub Pages)");
     }
   });
 }

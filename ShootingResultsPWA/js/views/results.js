@@ -4,54 +4,50 @@ import { el, clear } from "../dom.js";
 import { navigate, toast } from "../main.js";
 import { exportResultsPdf } from "../pdf.js";
 import { openTopStats } from "./topstats.js";
+import { t } from "../i18n.js";
 
 export function renderResults(root) {
   if (!store.sortedResults.length && store.shootersData.length) store.goToSorted();
   const ni = store.numItems;
+  const byCategory = store.useCategories && store.rankingMode === "byCategory";
 
   const topbar = el("div", { class: "topbar" }, [
-    el("h1", { text: `🏆 ${store.competitionName || "Soutěž"} – Výsledky` }),
-    el("button", { class: "btn-ghost btn-sm", text: "← Zápis", onclick: () => navigate("entry") }),
+    el("h1", { text: `🏆 ${store.competitionName || t("Soutěž")} – ${t("Výsledky")}` }),
+    el("button", { class: "btn-ghost btn-sm", text: t("← Zápis"), onclick: () => navigate("entry") }),
   ]);
 
   const controls = el("div", { class: "btn-row" }, [
-    el("button", { class: "btn-ghost btn-sm", text: "Vyhodnotit rozstřel", onclick: () => { collectRozstrel(); store.evalRozstrel(); renderTable(); } }),
+    el("button", { class: "btn-ghost btn-sm", text: t("Vyhodnotit rozstřel"), onclick: () => { collectRozstrel(); store.evalRozstrel(); renderGroups(); } }),
     store.hasFinale ? el("button", {
-      class: "btn-primary btn-sm", text: "Finále →",
-      onclick: () => { collectRozstrel(); store.save(); navigate("finale"); },
+      class: "btn-primary btn-sm", text: t("Finále →"),
+      onclick: () => { collectRozstrel(); store.save(); store.unlockTab("finale"); navigate("finale"); },
     }) : null,
-    el("button", { class: "btn-success btn-sm", text: "💾 Uložit", onclick: () => { collectRozstrel(); store.save(); toast(); } }),
-    el("button", { class: "btn-success btn-sm", text: "🖨 Tisk PDF", onclick: () => exportResultsPdf() }),
-    el("button", { class: "btn-ghost btn-sm", text: "📊 Top Statistika", onclick: () => openTopStats() }),
+    el("button", { class: "btn-success btn-sm", text: t("💾 Uložit"), onclick: () => { collectRozstrel(); store.save(); toast(); } }),
+    el("button", { class: "btn-success btn-sm", text: t("🖨 Tisk PDF"), onclick: () => exportResultsPdf() }),
+    el("button", { class: "btn-ghost btn-sm", text: t("📊 Top Statistika"), onclick: () => openTopStats() }),
   ]);
 
-  const tableWrap = el("div", { class: "table-wrap" });
-  const rozInputs = new Map();
+  const groupsWrap = el("div", {});
+  const rozInputs = new Map(); // shooter objekt -> <input>
 
   function collectRozstrel() {
-    rozInputs.forEach((input, idx) => { store.sortedResults[idx].rozstrel = input.value.trim(); });
+    rozInputs.forEach((input, d) => { d.rozstrel = input.value.trim(); });
   }
 
-  function renderTable() {
-    clear(tableWrap);
-    rozInputs.clear();
-    if (!store.sortedResults.length) {
-      tableWrap.append(el("div", { class: "empty-state", text: "Zatím žádná data. Vyplň nejdřív Zápis." }));
-      return;
-    }
-    const ties = store.findTiedIndices(store.sortedResults, ni, 6);
+  function renderOneTable(items) {
+    const ties = store.findTiedIndices(items, ni, 6);
     const table = el("table");
     const headRow = el("tr", {}, [
-      el("th", { text: "Poř." }), el("th", { text: "Příjmení" }), el("th", { text: "Jméno" }),
-      el("th", { text: "Start.č" }), el("th", { text: "Kat." }),
+      el("th", { text: t("Poř.") }), el("th", { text: t("Příjmení") }), el("th", { text: t("Jméno") }),
+      el("th", { text: t("Start.č") }), el("th", { text: t("Kat.") }),
     ]);
     for (let i = 1; i <= ni; i++) headRow.append(el("th", { text: `Pol.${i}` }), el("th", { text: `1.Ch.${i}` }));
-    headRow.append(el("th", { text: "Součet" }), el("th", { text: "Rozstřel" }));
+    headRow.append(el("th", { text: t("Součet") }), el("th", { text: t("Rozstřel") }));
     table.append(el("thead", {}, headRow));
 
     const tbody = el("tbody");
     const medals = { 1: "🥇", 2: "🥈", 3: "🥉" };
-    store.sortedResults.forEach((d, idx) => {
+    items.forEach((d, idx) => {
       const rank = idx + 1;
       const isTop6 = idx < 6, isTied = ties.has(idx);
       const tr = el("tr", { class: isTop6 ? "top6" : (isTied ? "tie" : "") });
@@ -64,12 +60,12 @@ export function renderResults(root) {
         tr.append(el("td", { text: String(d[`item${i}_score`] ?? "") }));
         tr.append(el("td", { class: "muted", text: String(d[`item${i}_fault`] ?? "") }));
       }
-      const t = num(d.total, 0);
-      tr.append(el("td", { class: "gold", text: Number.isInteger(t) ? String(t) : String(t) }));
+      const total = num(d.total, 0);
+      tr.append(el("td", { class: "gold", text: String(total) }));
 
       if (isTied || !store.hasFinale) {
         const input = el("input", { type: "text", value: d.rozstrel || "", style: "width:56px" });
-        rozInputs.set(idx, input);
+        rozInputs.set(d, input);
         tr.append(el("td", {}, input));
       } else {
         tr.append(el("td", { class: "muted" }));
@@ -77,16 +73,32 @@ export function renderResults(root) {
       tbody.append(tr);
     });
     table.append(tbody);
-    tableWrap.append(table);
+    return table;
   }
 
-  renderTable();
+  function renderGroups() {
+    clear(groupsWrap);
+    rozInputs.clear();
+    if (!store.sortedResults.length) {
+      groupsWrap.append(el("div", { class: "empty-state", text: t("Zatím žádná data. Vyplň nejdřív Zápis.") }));
+      return;
+    }
+    const groups = store.resultGroups(store.sortedResults);
+    groups.forEach(({ category, items }) => {
+      if (byCategory) {
+        groupsWrap.append(el("div", { class: "section-title", text: category || t("Bez kategorie") }));
+      }
+      groupsWrap.append(el("div", { class: "table-wrap" }, renderOneTable(items)));
+    });
+  }
+
+  renderGroups();
 
   const legend = el("div", { class: "legend" }, [
-    el("span", {}, [el("span", { class: "swatch", style: "background:var(--green)" }), "Top 6"]),
-    el("span", {}, [el("span", { class: "swatch", style: "background:var(--accent)" }), "Shodné výsledky – nutný rozstřel"]),
+    el("span", {}, [el("span", { class: "swatch", style: "background:var(--green)" }), t("Top 6")]),
+    el("span", {}, [el("span", { class: "swatch", style: "background:var(--accent)" }), t("Shodné výsledky – nutný rozstřel")]),
   ]);
 
-  const view = el("div", { class: "view" }, [controls, tableWrap, legend]);
+  const view = el("div", { class: "view" }, [controls, groupsWrap, legend]);
   root.append(topbar, view);
 }

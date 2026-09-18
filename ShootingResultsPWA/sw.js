@@ -8,7 +8,7 @@
 //
 // Verze zvyš při každé změně tohoto souboru nebo seznamu ASSETS, aby
 // prohlížeč spolehlivě poznal, že je k dispozici nová verze SW.
-const CACHE_NAME = "shooting-results-pwa-v5";
+const CACHE_NAME = "shooting-results-pwa-v6";
 
 const ASSETS = [
   "./",
@@ -20,6 +20,8 @@ const ASSETS = [
   "js/state.js",
   "js/constants.js",
   "js/pdf.js",
+  "js/i18n.js",
+  "js/dialog.js",
   "js/views/home.js",
   "js/views/lottery.js",
   "js/views/entry.js",

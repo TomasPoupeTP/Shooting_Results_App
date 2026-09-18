@@ -57,6 +57,7 @@ function defaultSortBlocks() {
 function defaultAppSettings() {
   return {
     theme: "system",              // "dark" | "light" | "system"
+    language: "cs",                // "cs" | "en"
     customDisciplines: [],        // string[]
     customCategories: [],         // {name, short}[]
     sortReverseDirection: false,  // false = položky se procházejí od poslední k 1. (desktop chování)
@@ -74,6 +75,7 @@ function defaultCompetitionData() {
     numItems: 3,
     hasFinale: false,
     useCategories: false,
+    rankingMode: "overall",       // "overall" | "byCategory" - jen relevantní když useCategories
     discipline: "Americký TRAP",
     maxScore: 25,
     refereeName: "",
@@ -84,7 +86,21 @@ function defaultCompetitionData() {
     shootersData: [],
     sortedResults: [],
     finaleFinalists: [],
+
+    // Záložky odemčené postupným procházením appky (viz Store.unlockTab).
+    unlockedTabs: ["home"],
   };
+}
+
+/** Dopočítá, které záložky by měly být odemčené na základě existujících dat
+ * (pro import/migraci, kdy uživatel neprošel appkou postupně od začátku). */
+function computeUnlockedTabs(data) {
+  const tabs = ["home"];
+  if (data.lotteryList && data.lotteryList.length) tabs.push("lottery");
+  if (data.shootersData && data.shootersData.some((d) => d.surname || d.name)) tabs.push("entry");
+  if (data.sortedResults && data.sortedResults.length) tabs.push("results");
+  if (data.finaleFinalists && data.finaleFinalists.length) tabs.push("finale");
+  return tabs;
 }
 
 export class Store {
@@ -120,6 +136,8 @@ export class Store {
   set hasFinale(v) { this.current.data.hasFinale = v; }
   get useCategories() { return this.current.data.useCategories; }
   set useCategories(v) { this.current.data.useCategories = v; }
+  get rankingMode() { return this.current.data.rankingMode || "overall"; }
+  set rankingMode(v) { this.current.data.rankingMode = v; }
   get discipline() { return this.current.data.discipline; }
   set discipline(v) { this.current.data.discipline = v; }
   get maxScore() { return this.current.data.maxScore; }
@@ -142,6 +160,21 @@ export class Store {
 
   disciplineText() {
     return this.discipline || "";
+  }
+
+  // ── Postupné odemykání záložek ────────────────────────────────────────────
+  get unlockedTabs() { return this.current.data.unlockedTabs || ["home"]; }
+
+  unlockTab(view) {
+    const d = this.current.data;
+    if (!d.unlockedTabs) d.unlockedTabs = ["home"];
+    if (!d.unlockedTabs.includes(view)) { d.unlockedTabs.push(view); this.save(); }
+  }
+
+  isTabUnlocked(view) {
+    if (view === "home" || view === "more") return true;
+    if (view === "finale" && !this.hasFinale) return false;
+    return this.unlockedTabs.includes(view);
   }
 
   // ── Soutěže (víc uložených najednou, přepínání) ──────────────────────────
@@ -285,13 +318,17 @@ export class Store {
     }
     delete this.app.sortUseFault;
     this.competitions = Array.isArray(d.competitions) && d.competitions.length
-      ? d.competitions.map((c) => ({
-          id: c.id || uid(),
-          name: c.name || "Bez názvu",
-          createdAt: c.createdAt || Date.now(),
-          updatedAt: c.updatedAt || Date.now(),
-          data: { ...defaultCompetitionData(), ...(c.data || {}) },
-        }))
+      ? d.competitions.map((c) => {
+          const data = { ...defaultCompetitionData(), ...(c.data || {}) };
+          if (!c.data || !c.data.unlockedTabs) data.unlockedTabs = computeUnlockedTabs(data);
+          return {
+            id: c.id || uid(),
+            name: c.name || "Bez názvu",
+            createdAt: c.createdAt || Date.now(),
+            updatedAt: c.updatedAt || Date.now(),
+            data,
+          };
+        })
       : [];
     this.activeId = d.activeId || (this.competitions[0] && this.competitions[0].id) || null;
   }
@@ -332,6 +369,7 @@ export class Store {
         if (old.discipline === "Vlastní…" && old.customDiscipline) {
           this.app.customDisciplines.push(old.customDiscipline);
         }
+        data.unlockedTabs = computeUnlockedTabs(data);
         const id = uid();
         this.competitions = [{ id, name: data.competitionName || "Soutěž", createdAt: Date.now(), updatedAt: Date.now(), data }];
         this.activeId = id;
@@ -351,6 +389,7 @@ export class Store {
     const data = d.data ? d.data : d;
     const c = this._createCompetitionInternal(data.competitionName || "Importovaná soutěž");
     c.data = { ...defaultCompetitionData(), ...data };
+    if (!data.unlockedTabs) c.data.unlockedTabs = computeUnlockedTabs(c.data);
     c.name = c.data.competitionName || "Importovaná soutěž";
     this.activeId = c.id;
     this.save();
@@ -504,14 +543,16 @@ export class Store {
     return key === "score" ? "Skóre položek" : key === "fault" ? "Pozice první chyby (1.Ch.)" : key;
   }
 
-  /** Srozumitelný popis aktuálního postupu řazení - použito v Nápovědě i v Nastavení aplikace. */
-  describeSortConfig() {
-    const dirText = this.app.sortReverseDirection ? "od 1. položky k poslední" : "od poslední položky k 1.";
-    const steps = ["Celkový součet (vyšší vyhrává)"];
+  /** Srozumitelný popis aktuálního postupu řazení - použito v Nápovědě i v Nastavení aplikace.
+   * `translate` je volitelná funkce (typicky t() z i18n.js) - state.js sám i18n neřeší,
+   * aby se předešlo cyklickému importu. */
+  describeSortConfig(translate = (s) => s) {
+    const dirText = translate(this.app.sortReverseDirection ? "od 1. položky k poslední" : "od poslední položky k 1.");
+    const steps = [translate("Celkový součet (vyšší vyhrává)")];
     for (const b of this.app.sortBlocks) {
-      if (b.enabled) steps.push(`${Store.blockLabel(b.key)} (${dirText})`);
+      if (b.enabled) steps.push(`${translate(Store.blockLabel(b.key))} (${dirText})`);
     }
-    steps.push("Rozstřel (ruční zadání, pokud shoda přetrvá)");
+    steps.push(translate("Rozstřel (ruční zadání, pokud shoda přetrvá)"));
     return steps;
   }
 
@@ -566,51 +607,98 @@ export class Store {
     return tied;
   }
 
+  /** Rozdělí (už seřazená) data do skupin dle kategorie, pokud je aktivní
+   * řazení "po kategoriích" - jinak vrátí jednu skupinu se vším. Používá se
+   * pro zobrazení (samostatné tabulky/pořadí per kategorie) i pro výpočty
+   * (rozstřel, finále), aby se navzájem nemíchaly různé kategorie. */
+  resultGroups(data) {
+    if (!(this.useCategories && this.rankingMode === "byCategory")) {
+      return [{ category: null, items: data }];
+    }
+    const groups = [];
+    let current = null;
+    for (const d of data) {
+      const cat = d.category || "";
+      if (!current || current.category !== cat) {
+        current = { category: cat, items: [] };
+        groups.push(current);
+      }
+      current.items.push(d);
+    }
+    return groups;
+  }
+
   goToSorted() {
     this.ensureEntryRows();
     this.shootersData.forEach((d) => this.recalcRowTotal(d));
-    this.sortedResults = this.sortShooters(this.shootersData, this.numItems);
+    if (this.useCategories && this.rankingMode === "byCategory") {
+      const cats = [...new Set(this.shootersData.map((d) => d.category || ""))].sort();
+      this.sortedResults = cats.flatMap((cat) =>
+        this.sortShooters(this.shootersData.filter((d) => (d.category || "") === cat), this.numItems)
+      );
+    } else {
+      this.sortedResults = this.sortShooters(this.shootersData, this.numItems);
+    }
     this.save();
   }
 
-  evalRozstrel() {
-    const result = [...this.sortedResults];
+  /** Uvnitř jedné skupiny (position groups by celkový součet / kombinovaný
+   * součet u finále) přeřadí položky se zadaným ručním rozstřelem. Používá
+   * se odděleně pro Výsledky i Finále, a odděleně pro každou kategorii. */
+  _applyRozstrelWithinGroup(items, rozKey, totalGetter) {
+    const result = [...items];
     const round6 = (v) => Math.round(num(v, 0) * 1e6) / 1e6;
     const totalToIdx = new Map();
     result.forEach((d, i) => {
-      const t = round6(d.total);
+      const t = round6(totalGetter(d));
       if (!totalToIdx.has(t)) totalToIdx.set(t, []);
       totalToIdx.get(t).push(i);
     });
     for (const idxs of totalToIdx.values()) {
       if (idxs.length < 2) continue;
       const group = idxs.map((i) => result[i]);
-      if (!group.some((d) => d.rozstrel)) continue;
+      if (!group.some((d) => d[rozKey])) continue;
       const rozVal = (d) => {
-        const v = num(d.rozstrel, NaN);
+        const v = num(d[rozKey], NaN);
         return Number.isFinite(v) ? -v : Infinity;
       };
       const groupSorted = [...group].sort((a, b) => rozVal(a) - rozVal(b));
       idxs.forEach((pos, k) => { result[pos] = groupSorted[k]; });
     }
-    this.sortedResults = result;
+    return result;
+  }
+
+  evalRozstrel() {
+    const groups = this.resultGroups(this.sortedResults);
+    this.sortedResults = groups.flatMap((g) =>
+      this._applyRozstrelWithinGroup(g.items, "rozstrel", (d) => d.total)
+    );
     this.save();
   }
 
   // ── Finále ───────────────────────────────────────────────────────────────
+  _pickTop6WithTies(items, ni) {
+    const ties = this.findTiedIndices(items, ni, 6);
+    const seen = [];
+    for (let i = 0; i < Math.min(6, items.length); i++) {
+      if (!seen.includes(items[i])) seen.push(items[i]);
+    }
+    [...ties].sort((a, b) => a - b).forEach((i) => {
+      if (i >= 6 && !seen.includes(items[i])) seen.push(items[i]);
+    });
+    return seen.slice(0, 6);
+  }
+
   buildFinalists() {
     const already = this.finaleFinalists.length && this.finaleFinalists.some((d) => d.finale_score);
     if (already) return;
     const ni = this.numItems;
-    const ties = this.findTiedIndices(this.sortedResults, ni, 6);
-    const seen = [];
-    for (let i = 0; i < Math.min(6, this.sortedResults.length); i++) {
-      if (!seen.includes(this.sortedResults[i])) seen.push(this.sortedResults[i]);
+    if (this.useCategories && this.rankingMode === "byCategory") {
+      const groups = this.resultGroups(this.sortedResults);
+      this.finaleFinalists = groups.flatMap((g) => this._pickTop6WithTies(g.items, ni));
+    } else {
+      this.finaleFinalists = this._pickTop6WithTies(this.sortedResults, ni);
     }
-    [...ties].sort((a, b) => a - b).forEach((i) => {
-      if (i >= 6 && !seen.includes(this.sortedResults[i])) seen.push(this.sortedResults[i]);
-    });
-    this.finaleFinalists = seen.slice(0, 6);
     this.save();
   }
 
@@ -641,33 +729,21 @@ export class Store {
 
   sortFinale() {
     const ni = this.numItems;
-    this.finaleFinalists = [...this.finaleFinalists].sort(
-      (a, b) => Store.compareKeys(this.finaleKey(a, ni), this.finaleKey(b, ni))
-    );
+    const cmp = (a, b) => Store.compareKeys(this.finaleKey(a, ni), this.finaleKey(b, ni));
+    if (this.useCategories && this.rankingMode === "byCategory") {
+      const groups = this.resultGroups(this.finaleFinalists);
+      this.finaleFinalists = groups.flatMap((g) => [...g.items].sort(cmp));
+    } else {
+      this.finaleFinalists = [...this.finaleFinalists].sort(cmp);
+    }
     this.save();
   }
 
   evalFinaleRozstrel() {
-    const result = [...this.finaleFinalists];
-    const round6 = (v) => Math.round(num(v, 0) * 1e6) / 1e6;
-    const totalToIdx = new Map();
-    result.forEach((d, i) => {
-      const combined = round6(num(d.total, 0) + num(d.finale_score, 0));
-      if (!totalToIdx.has(combined)) totalToIdx.set(combined, []);
-      totalToIdx.get(combined).push(i);
-    });
-    for (const idxs of totalToIdx.values()) {
-      if (idxs.length < 2) continue;
-      const group = idxs.map((i) => result[i]);
-      if (!group.some((d) => d.finale_rozstrel)) continue;
-      const rozVal = (d) => {
-        const v = num(d.finale_rozstrel, NaN);
-        return Number.isFinite(v) ? -v : Infinity;
-      };
-      const groupSorted = [...group].sort((a, b) => rozVal(a) - rozVal(b));
-      idxs.forEach((pos, k) => { result[pos] = groupSorted[k]; });
-    }
-    this.finaleFinalists = result;
+    const groups = this.resultGroups(this.finaleFinalists);
+    this.finaleFinalists = groups.flatMap((g) =>
+      this._applyRozstrelWithinGroup(g.items, "finale_rozstrel", (d) => num(d.total, 0) + num(d.finale_score, 0))
+    );
     this.save();
   }
 

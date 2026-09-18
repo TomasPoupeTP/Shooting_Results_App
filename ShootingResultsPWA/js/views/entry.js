@@ -2,6 +2,8 @@ import { store, num } from "../state.js";
 import { allCategories, ADD_CUSTOM } from "../constants.js";
 import { el, clear } from "../dom.js";
 import { navigate, toast } from "../main.js";
+import { t } from "../i18n.js";
+import { choiceDialog } from "../dialog.js";
 
 export function renderEntry(root) {
   store.ensureEntryRows();
@@ -9,11 +11,11 @@ export function renderEntry(root) {
 
   const topbar = el("div", { class: "topbar" }, [
     el("div", {}, [
-      el("h1", { text: `🎯 ${store.competitionName || "Soutěž"}` }),
-      el("div", { class: "sub", text: `${store.disciplineText()} • Max: ${store.maxScore} terčů` }),
+      el("h1", { text: `🎯 ${store.competitionName || t("Soutěž")}` }),
+      el("div", { class: "sub", text: `${store.disciplineText()} • Max: ${store.maxScore} ${t("terčů")}` }),
     ]),
     el("div", { class: "actions" }, [
-      el("button", { class: "btn-ghost btn-sm", text: "← Zpět", onclick: () => navigate("home") }),
+      el("button", { class: "btn-ghost btn-sm", text: t("← Zpět"), onclick: () => navigate("home") }),
     ]),
   ]);
 
@@ -22,19 +24,33 @@ export function renderEntry(root) {
       type: "checkbox", id: "chk-entry-cats", checked: store.useCategories,
       onchange: (e) => { store.useCategories = e.target.checked; store.save(); renderTable(); },
     }),
-    el("label", { for: "chk-entry-cats", text: "Kategorie" }),
+    el("label", { for: "chk-entry-cats", text: t("Kategorie") }),
   ]);
 
   const controls = el("div", { class: "btn-row" }, [
-    el("button", { class: "btn-ghost btn-sm", text: "+ Střelec", onclick: () => { store.addShooterRow(); renderTable(); } }),
-    el("button", { class: "btn-ghost btn-sm", text: "− Střelec", onclick: () => { store.removeShooterRow(); renderTable(); } }),
-    el("button", { class: "btn-ghost btn-sm", text: "+ Položka", onclick: () => { store.addItemColumn(); clear(root); renderEntry(root); } }),
-    el("button", { class: "btn-ghost btn-sm", text: "− Položka", onclick: () => { store.removeItemColumn(); clear(root); renderEntry(root); } }),
-    el("button", { class: "btn-success btn-sm", text: "💾 Uložit", onclick: () => { store.save(); toast(); } }),
-    el("button", { class: "btn-ghost btn-sm", text: "🖥 Prezentace", onclick: () => startPresentation() }),
+    el("button", { class: "btn-ghost btn-sm", text: t("+ Střelec"), onclick: () => { store.addShooterRow(); renderTable(); } }),
+    el("button", { class: "btn-ghost btn-sm", text: t("− Střelec"), onclick: () => { store.removeShooterRow(); renderTable(); } }),
+    el("button", { class: "btn-ghost btn-sm", text: t("+ Položka"), onclick: () => { store.addItemColumn(); clear(root); renderEntry(root); } }),
+    el("button", { class: "btn-ghost btn-sm", text: t("− Položka"), onclick: () => { store.removeItemColumn(); clear(root); renderEntry(root); } }),
+    el("button", { class: "btn-success btn-sm", text: t("💾 Uložit"), onclick: () => { store.save(); toast(); } }),
+    el("button", { class: "btn-ghost btn-sm", text: t("🖥 Prezentace"), onclick: () => startPresentation() }),
     el("button", {
-      class: "btn-primary btn-sm", text: "Seřadit →",
-      onclick: () => { store.goToSorted(); navigate("results"); },
+      class: "btn-primary btn-sm", text: t("Seřadit →"),
+      onclick: async () => {
+        if (store.useCategories) {
+          const overallMark = store.rankingMode === "overall" ? "✓ " : "";
+          const byCatMark = store.rankingMode === "byCategory" ? "✓ " : "";
+          const mode = await choiceDialog(t("Jak řadit výsledky?"), [
+            { label: overallMark + t("Celkově (jedno pořadí přes všechny kategorie)"), value: "overall" },
+            { label: byCatMark + t("Po kategoriích (samostatné pořadí a finále pro každou kategorii)"), value: "byCategory" },
+          ]);
+          if (!mode) return;
+          store.rankingMode = mode;
+        }
+        store.goToSorted();
+        store.unlockTab("results");
+        navigate("results");
+      },
     }),
   ]);
 
@@ -44,13 +60,13 @@ export function renderEntry(root) {
     clear(tableWrap);
     const table = el("table");
     const headRow = el("tr", {}, [
-      el("th", { text: "#" }), el("th", { text: "Příjmení" }), el("th", { text: "Jméno" }),
-      el("th", { text: "Start.č" }), el("th", { text: "Kat." }),
+      el("th", { text: "#" }), el("th", { text: t("Příjmení") }), el("th", { text: t("Jméno") }),
+      el("th", { text: t("Start.č") }), el("th", { text: t("Kat.") }),
     ]);
     for (let i = 1; i <= ni; i++) {
       headRow.append(el("th", { text: `Pol.${i}` }), el("th", { text: `1.Ch.${i}` }));
     }
-    headRow.append(el("th", { text: "Součet" }));
+    headRow.append(el("th", { text: t("Součet") }));
     table.append(el("thead", {}, headRow));
 
     const tbody = el("tbody");
@@ -82,7 +98,7 @@ export function renderEntry(root) {
       const catSelect = el("select", {
         onchange: (e) => {
           if (e.target.value === ADD_CUSTOM) {
-            const name = prompt("Název vlastní kategorie:", "");
+            const name = prompt(t("Název vlastní kategorie:"), "");
             if (name && name.trim()) {
               store.addCustomCategory(name.trim());
               row.category = name.trim();
@@ -96,7 +112,7 @@ export function renderEntry(root) {
       }, [
         el("option", { value: "", selected: !row.category, text: "—" }),
         ...allCategories().map((c) => el("option", { value: c, selected: c === (row.category || ""), text: c })),
-        el("option", { value: ADD_CUSTOM, text: "+ Přidat vlastní…" }),
+        el("option", { value: ADD_CUSTOM, text: t("+ Přidat vlastní…") }),
       ]);
       tr.append(el("td", {}, catSelect));
 
@@ -130,8 +146,8 @@ export function renderEntry(root) {
   }
 
   function fmtTotal(row) {
-    const t = store.recalcRowTotal(row);
-    return Number.isInteger(t) ? String(t) : String(t);
+    const total = store.recalcRowTotal(row);
+    return String(total);
   }
 
   renderTable();

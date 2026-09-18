@@ -105,7 +105,7 @@ export function exportResultsPdf() {
   const doc = newDoc();
   let y = pdfHeader(doc, "Výsledky");
   const ni = store.numItems;
-  if (store.useCategories) {
+  if (store.useCategories && store.rankingMode === "byCategory") {
     for (const { cat, group } of groupByCategory(store.sortedResults)) {
       doc.setFont(FONT, "bold"); doc.setFontSize(10);
       doc.text(cat || "Bez kategorie", 12, y + 4);
@@ -130,7 +130,7 @@ export function exportFinalePdf() {
     if (!finalistKeys.has(key)) combined.push({ ...d, finale_score: "" });
   }
 
-  if (store.useCategories) {
+  if (store.useCategories && store.rankingMode === "byCategory") {
     for (const { cat, group } of groupByCategory(combined)) {
       doc.setFont(FONT, "bold"); doc.setFontSize(10);
       doc.text(cat || "Bez kategorie", 12, y + 4);

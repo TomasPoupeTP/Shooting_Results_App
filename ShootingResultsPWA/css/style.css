@@ -307,6 +307,7 @@ table select { padding: 4px; font-size: 12px; }
 .presentation .pres-row.top6 .rank { color: var(--gold); }
 .presentation .pres-row .name { flex: 1; }
 .presentation .pres-row .total { font-weight: 700; color: var(--gold); }
+.presentation .section-title { color: var(--accent); font-size: 14px; }
 
 @media (max-width: 420px) {
   .topbar h1 { font-size: 14px; }
