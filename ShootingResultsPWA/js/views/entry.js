@@ -1,5 +1,5 @@
 import { store, num } from "../state.js";
-import { CATEGORIES } from "../constants.js";
+import { allCategories, ADD_CUSTOM } from "../constants.js";
 import { el, clear } from "../dom.js";
 import { navigate, toast } from "../main.js";
 
@@ -80,8 +80,24 @@ export function renderEntry(root) {
       tr.append(el("td", {}, snInput));
 
       const catSelect = el("select", {
-        onchange: (e) => { row.category = e.target.value; store.save(); },
-      }, CATEGORIES.map((c) => el("option", { value: c, selected: c === (row.category || ""), text: c || "—" })));
+        onchange: (e) => {
+          if (e.target.value === ADD_CUSTOM) {
+            const name = prompt("Název vlastní kategorie:", "");
+            if (name && name.trim()) {
+              store.addCustomCategory(name.trim());
+              row.category = name.trim();
+            }
+            store.save();
+            renderTable();
+            return;
+          }
+          row.category = e.target.value; store.save();
+        },
+      }, [
+        el("option", { value: "", selected: !row.category, text: "—" }),
+        ...allCategories().map((c) => el("option", { value: c, selected: c === (row.category || ""), text: c })),
+        el("option", { value: ADD_CUSTOM, text: "+ Přidat vlastní…" }),
+      ]);
       tr.append(el("td", {}, catSelect));
 
       const sumCell = el("td", { class: "gold", text: fmtTotal(row) });

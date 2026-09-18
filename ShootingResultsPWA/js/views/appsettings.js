@@ -1,0 +1,185 @@
+import { store } from "../state.js";
+import { DISCIPLINES, allDisciplines } from "../constants.js";
+import { el, clear } from "../dom.js";
+import { navigate, toast } from "../main.js";
+
+export function renderAppSettings(root) {
+  const topbar = el("div", { class: "topbar" }, [
+    el("h1", { text: "⚙️ Nastavení appky" }),
+    el("button", { class: "btn-ghost btn-sm", text: "← Zpět", onclick: () => navigate("home") }),
+  ]);
+
+  const view = el("div", { class: "view" });
+
+  // ── Vzhled ────────────────────────────────────────────────────────────
+  const themeCard = el("div", { class: "card" });
+  const themeOptions = [
+    ["system", "Podle systému telefonu"],
+    ["dark", "Tmavý"],
+    ["light", "Světlý"],
+  ];
+  themeCard.append(
+    ...themeOptions.map(([val, label]) =>
+      el("div", { class: "radio-row" }, [
+        el("input", {
+          type: "radio", name: "theme", id: `theme-${val}`, checked: store.app.theme === val,
+          onchange: () => { store.setTheme(val); },
+        }),
+        el("label", { for: `theme-${val}`, text: label }),
+      ])
+    )
+  );
+
+  // ── Vlastní disciplíny ───────────────────────────────────────────────
+  const discInput = el("input", { type: "text", placeholder: "Název nové disciplíny" });
+  const discListWrap = el("div", {});
+  function renderDiscList() {
+    clear(discListWrap);
+    if (!store.app.customDisciplines.length) {
+      discListWrap.append(el("p", { style: "color:var(--text-muted);font-size:13px", text: "Zatím žádné vlastní disciplíny." }));
+      return;
+    }
+    store.app.customDisciplines.forEach((name) => {
+      discListWrap.append(el("div", { class: "list-item" }, [
+        el("div", { class: "main title", text: name }),
+        el("button", {
+          class: "btn-ghost btn-sm", text: "🗑",
+          onclick: () => { store.removeCustomDiscipline(name); renderDiscList(); },
+        }),
+      ]));
+    });
+  }
+  renderDiscList();
+
+  const discCard = el("div", { class: "card" }, [
+    el("div", { class: "row" }, [
+      discInput,
+      el("button", {
+        class: "btn-primary btn-sm", text: "+ Přidat",
+        onclick: () => {
+          const v = discInput.value.trim();
+          if (!v) return;
+          if (DISCIPLINES.includes(v) || store.app.customDisciplines.includes(v)) {
+            toast("Tahle disciplína už existuje"); return;
+          }
+          store.addCustomDiscipline(v);
+          discInput.value = "";
+          renderDiscList();
+        },
+      }),
+    ]),
+    discListWrap,
+  ]);
+
+  // ── Vlastní kategorie ────────────────────────────────────────────────
+  const catNameInput = el("input", { type: "text", placeholder: "Název kategorie" });
+  const catShortInput = el("input", { type: "text", placeholder: "Zkratka (1-3 znaky)", style: "width:110px" });
+  const catListWrap = el("div", {});
+  function renderCatList() {
+    clear(catListWrap);
+    if (!store.app.customCategories.length) {
+      catListWrap.append(el("p", { style: "color:var(--text-muted);font-size:13px", text: "Zatím žádné vlastní kategorie." }));
+      return;
+    }
+    store.app.customCategories.forEach((c) => {
+      catListWrap.append(el("div", { class: "list-item" }, [
+        el("div", { class: "main" }, [
+          el("span", { class: "title", text: c.name }),
+          el("span", { class: "sub", text: `zkratka: ${c.short}` }),
+        ]),
+        el("button", {
+          class: "btn-ghost btn-sm", text: "🗑",
+          onclick: () => { store.removeCustomCategory(c.name); renderCatList(); },
+        }),
+      ]));
+    });
+  }
+  renderCatList();
+
+  const catCard = el("div", { class: "card" }, [
+    el("div", { class: "row" }, [
+      catNameInput, catShortInput,
+      el("button", {
+        class: "btn-primary btn-sm", text: "+ Přidat",
+        onclick: () => {
+          const v = catNameInput.value.trim();
+          if (!v) return;
+          const ok = store.addCustomCategory(v, catShortInput.value.trim());
+          if (!ok) { toast("Tahle kategorie už existuje"); return; }
+          catNameInput.value = ""; catShortInput.value = "";
+          renderCatList();
+        },
+      }),
+    ]),
+    catListWrap,
+  ]);
+
+  // ── Kritéria řazení / rozstřelu ──────────────────────────────────────
+  const sortPreview = el("p", { style: "color:var(--text-muted);font-size:12px;margin-top:8px" });
+  function updateSortPreview() {
+    const dirText = store.app.sortReverseDirection
+      ? "od 1. položky k poslední"
+      : "od poslední položky k 1. (výchozí)";
+    const faultText = store.app.sortUseFault ? "ano" : "ne";
+    sortPreview.textContent = `Při shodě celkového součtu se porovnávají skóre položek ${dirText}. Pozice první chyby se do porovnání počítá: ${faultText}.`;
+  }
+  updateSortPreview();
+
+  const sortCard = el("div", { class: "card" }, [
+    el("div", { class: "radio-row" }, [
+      el("input", {
+        type: "checkbox", id: "sort-reverse", checked: store.app.sortReverseDirection,
+        onchange: (e) => { store.setSortConfig({ reverseDirection: e.target.checked }); updateSortPreview(); },
+      }),
+      el("label", { for: "sort-reverse", text: "Při shodě porovnávat od první položky (ne od poslední)" }),
+    ]),
+    el("div", { class: "radio-row" }, [
+      el("input", {
+        type: "checkbox", id: "sort-fault", checked: store.app.sortUseFault,
+        onchange: (e) => { store.setSortConfig({ useFault: e.target.checked }); updateSortPreview(); },
+      }),
+      el("label", { for: "sort-fault", text: "Zohledňovat pozici první chyby (sloupec 1.Ch.) při shodě" }),
+    ]),
+    sortPreview,
+  ]);
+
+  // ── Výchozí hodnoty pro nové soutěže ─────────────────────────────────
+  const defDiscInput = el("select", {}, allDisciplines().map((d) =>
+    el("option", { value: d, selected: d === store.app.defaultDiscipline, text: d })));
+  const defMaxInput = el("input", { type: "number", value: store.app.defaultMaxScore, min: "1" });
+  const defRefInput = el("input", { type: "text", value: store.app.defaultRefereeName, placeholder: "Jméno hlavního rozhodčího" });
+
+  const defaultsCard = el("div", { class: "card" }, [
+    el("div", { class: "field" }, [
+      el("label", { text: "Výchozí disciplína" }),
+      defDiscInput,
+    ]),
+    el("div", { class: "field" }, [
+      el("label", { text: "Výchozí max. terčů/položku" }),
+      defMaxInput,
+    ]),
+    el("div", { class: "field" }, [
+      el("label", { text: "Výchozí jméno hlavního rozhodčího" }),
+      defRefInput,
+    ]),
+    el("button", {
+      class: "btn-primary btn-sm", text: "Uložit výchozí hodnoty",
+      onclick: () => {
+        store.app.defaultDiscipline = defDiscInput.value.trim() || store.app.defaultDiscipline;
+        store.app.defaultMaxScore = parseInt(defMaxInput.value || "25", 10) || 25;
+        store.app.defaultRefereeName = defRefInput.value.trim();
+        store.save();
+        toast("Uloženo ✔");
+      },
+    }),
+  ]);
+
+  view.append(
+    el("div", { class: "section-title", text: "Vzhled" }), themeCard,
+    el("div", { class: "section-title", text: "Vlastní disciplíny" }), discCard,
+    el("div", { class: "section-title", text: "Vlastní kategorie" }), catCard,
+    el("div", { class: "section-title", text: "Kritéria řazení při shodě" }), sortCard,
+    el("div", { class: "section-title", text: "Výchozí hodnoty pro nové soutěže" }), defaultsCard,
+  );
+  root.append(topbar, view);
+}

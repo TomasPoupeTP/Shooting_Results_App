@@ -17,16 +17,31 @@
 <link rel="icon" href="icons/icon-192.png" />
 
 <link rel="stylesheet" href="css/style.css" />
+<script>
+// Nastaví motiv (světlý/tmavý) ještě před prvním vykreslením, ať appka
+// nebliká špatnou barvou, než se stihne načíst JS modul se stavem appky.
+(function () {
+  try {
+    var raw = localStorage.getItem("shootingResultsPWA.v2");
+    var theme = raw ? (JSON.parse(raw).app || {}).theme : null;
+    if (!theme || theme === "system") {
+      theme = (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+    }
+    document.documentElement.setAttribute("data-theme", theme);
+  } catch (e) {}
+})();
+</script>
 </head>
 <body>
 <div id="app"></div>
 
 <nav class="tabbar" id="tabbar">
-  <button data-view="home"><span class="icon">🏠</span>Nastavení</button>
+  <button data-view="home"><span class="icon">🎯</span>Soutěž</button>
   <button data-view="lottery"><span class="icon">🎲</span>Los</button>
   <button data-view="entry"><span class="icon">✏️</span>Zápis</button>
   <button data-view="results"><span class="icon">🏆</span>Výsledky</button>
   <button data-view="finale"><span class="icon">🏅</span>Finále</button>
+  <button data-view="more"><span class="icon">☰</span>Více</button>
 </nav>
 
 <div class="toast" id="toast"></div>

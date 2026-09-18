@@ -1,11 +1,11 @@
 import { store } from "../state.js";
-import { DISCIPLINES, CUSTOM_DISC } from "../constants.js";
+import { allDisciplines, ADD_CUSTOM } from "../constants.js";
 import { el } from "../dom.js";
 import { navigate, toast } from "../main.js";
 
 export function renderHome(root) {
   const topbar = el("div", { class: "topbar" }, [
-    el("h1", { text: "🎯 SHOOTING RESULTS APP" }),
+    el("h1", { text: "🎯 " + (store.competitionName || "SHOOTING RESULTS APP") }),
   ]);
 
   const view = el("div", { class: "view" });
@@ -37,20 +37,31 @@ export function renderHome(root) {
     }),
   ]);
 
-  const discSelect = el("select", {
-    onchange: (e) => { store.discipline = e.target.value; renderHome(root); store.save(); },
-  }, [...DISCIPLINES, CUSTOM_DISC].map((d) =>
-    el("option", { value: d, selected: d === store.discipline, text: d })));
+  function buildDiscSelect() {
+    return el("select", {
+      onchange: (e) => {
+        if (e.target.value === ADD_CUSTOM) {
+          const name = prompt("Název vlastní disciplíny:", "");
+          if (name && name.trim()) {
+            store.addCustomDiscipline(name.trim());
+            store.discipline = name.trim();
+          }
+          disciplineField.replaceChild(buildDiscSelect(), disciplineField.lastChild);
+          store.save();
+          return;
+        }
+        store.discipline = e.target.value;
+        store.save();
+      },
+    }, [
+      ...allDisciplines().map((d) => el("option", { value: d, selected: d === store.discipline, text: d })),
+      el("option", { value: ADD_CUSTOM, text: "+ Přidat vlastní…" }),
+    ]);
+  }
 
   const disciplineField = el("div", { class: "field" }, [
     el("label", { text: "Disciplína" }),
-    discSelect,
-    store.discipline === CUSTOM_DISC ? el("input", {
-      type: "text", placeholder: "Vlastní disciplína", value: store.customDiscipline,
-      style: "margin-top:6px",
-      oninput: (e) => { store.customDiscipline = e.target.value; },
-      onblur: () => store.save(),
-    }) : null,
+    buildDiscSelect(),
   ]);
 
   const maxScoreField = el("div", { class: "field" }, [
@@ -58,6 +69,32 @@ export function renderHome(root) {
     el("input", {
       type: "number", min: "1", max: "999", value: store.maxScore,
       oninput: (e) => { store.maxScore = parseInt(e.target.value || "0", 10) || 0; },
+      onblur: () => store.save(),
+    }),
+  ]);
+
+  const refereeField = el("div", { class: "field" }, [
+    el("label", { text: "Hlavní rozhodčí" }),
+    el("input", {
+      type: "text", value: store.refereeName, placeholder: "Jméno (zobrazí se v PDF)",
+      oninput: (e) => { store.refereeName = e.target.value; },
+      onblur: () => store.save(),
+    }),
+  ]);
+
+  const dateField = el("div", { class: "field" }, [
+    el("label", { text: "Datum konání" }),
+    el("input", {
+      type: "date", value: store.eventDate,
+      onchange: (e) => { store.eventDate = e.target.value; store.save(); },
+    }),
+  ]);
+
+  const venueField = el("div", { class: "field" }, [
+    el("label", { text: "Místo konání" }),
+    el("input", {
+      type: "text", value: store.venue, placeholder: "např. Střelnice Brno",
+      oninput: (e) => { store.venue = e.target.value; },
       onblur: () => store.save(),
     }),
   ]);
@@ -96,9 +133,10 @@ export function renderHome(root) {
       },
     }),
     el("button", {
-      class: "btn-danger", text: "🗑 Nová soutěž",
+      class: "btn-danger", text: "🆕 Nová soutěž",
       onclick: () => {
-        if (confirm("Opravdu smazat aktuální soutěž a začít znovu?")) store.newCompetition();
+        store.createCompetition("Nová soutěž");
+        toast("Nová soutěž vytvořena ✔");
         renderHome(root);
       },
     }),
@@ -129,11 +167,11 @@ export function renderHome(root) {
   ]);
 
   view.append(
-    el("div", { class: "card" }, [nameField, numShootersField, numItemsField, disciplineField, maxScoreField]),
+    el("div", { class: "card" }, [nameField, numShootersField, numItemsField, disciplineField, maxScoreField, refereeField, dateField, venueField]),
     optionsField,
     actions,
     ioActions,
-    el("p", { class: "sub", style: "text-align:center;color:var(--text-muted);font-size:11px;margin-top:8px", text: "Data se ukládají v tomto prohlížeči (localStorage). Pro zálohu použij Export JSON." }),
+    el("p", { class: "sub", style: "text-align:center;color:var(--text-muted);font-size:11px;margin-top:8px", text: "Víc soutěží najednou, vzhled a další nastavení najdeš v menu ☰ Více." }),
   );
 
   root.append(topbar, view);

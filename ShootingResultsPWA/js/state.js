@@ -1,16 +1,27 @@
 // Centrální stav appky + veškerá "business logika" 1:1 podle desktop verze
 // (shooting_results_app.py): řazení, detekce shody, rozstřel, finále, statistika.
+//
+// Datový model (v2): appka drží víc soutěží najednou ("competitions"),
+// mezi kterými lze přepínat, plus samostatné "appSettings" (vzhled, vlastní
+// disciplíny/kategorie, výchozí hodnoty, kritéria řazení) sdílené napříč
+// všemi soutěžemi.
 
-const STORAGE_KEY = "shootingResultsPWA.competition.v1";
+const STORAGE_KEY = "shootingResultsPWA.v2";
+const OLD_STORAGE_KEY = "shootingResultsPWA.competition.v1"; // v1 formát (jedna soutěž) - kvůli migraci
 
-function num(v, def = 0) {
+export function num(v, def = 0) {
   const n = parseFloat(v);
   return Number.isFinite(n) ? n : def;
 }
 
-function fmtScore(v) {
+export function fmtScore(v) {
   const n = num(v, 0);
   return Number.isInteger(n) ? String(n) : String(n);
+}
+
+function uid() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
 }
 
 function shuffle(arr) {
@@ -34,76 +45,227 @@ function blankItems(row, ni) {
   return row;
 }
 
+function defaultAppSettings() {
+  return {
+    theme: "system",              // "dark" | "light" | "system"
+    customDisciplines: [],        // string[]
+    customCategories: [],         // {name, short}[]
+    sortReverseDirection: false,  // false = od poslední položky k první (desktop chování)
+    sortUseFault: true,           // brát v potaz "1. chybu" při shodě skóre
+    defaultDiscipline: "Americký TRAP",
+    defaultMaxScore: 25,
+    defaultRefereeName: "",
+  };
+}
+
+function defaultCompetitionData() {
+  return {
+    competitionName: "",
+    numShooters: 8,
+    numItems: 3,
+    hasFinale: false,
+    useCategories: false,
+    discipline: "Americký TRAP",
+    maxScore: 25,
+    refereeName: "",
+    eventDate: "",
+    venue: "",
+
+    lotteryList: [],
+    shootersData: [],
+    sortedResults: [],
+    finaleFinalists: [],
+  };
+}
+
 class Store {
   constructor() {
-    this.reset();
-    this.load();
+    this.app = defaultAppSettings();
+    this.competitions = [];
+    this.activeId = null;
     this.view = "home";
     this.listeners = [];
-  }
 
-  reset() {
-    this.competitionName = "";
-    this.numShooters = 8;
-    this.numItems = 3;
-    this.hasFinale = false;
-    this.useCategories = false;
-    this.discipline = "Americký TRAP";
-    this.customDiscipline = "";
-    this.maxScore = 25;
-
-    this.lotteryList = [];
-    this.shootersData = [];
-    this.sortedResults = [];
-    this.finaleFinalists = [];
+    this.load();
+    if (!this.competitions.length) this._createCompetitionInternal("Nová soutěž");
+    if (!this.activeId || !this.competitions.some((c) => c.id === this.activeId)) {
+      this.activeId = this.competitions[0].id;
+    }
   }
 
   onChange(fn) { this.listeners.push(fn); }
   notify() { this.listeners.forEach((fn) => fn()); }
 
+  // ── Aktivní soutěž (proxy na competitions[activeId].data) ───────────────
+  get current() {
+    return this.competitions.find((c) => c.id === this.activeId) || this.competitions[0];
+  }
+
+  get competitionName() { return this.current.data.competitionName; }
+  set competitionName(v) { this.current.data.competitionName = v; this.current.name = v || "Bez názvu"; }
+  get numShooters() { return this.current.data.numShooters; }
+  set numShooters(v) { this.current.data.numShooters = v; }
+  get numItems() { return this.current.data.numItems; }
+  set numItems(v) { this.current.data.numItems = v; }
+  get hasFinale() { return this.current.data.hasFinale; }
+  set hasFinale(v) { this.current.data.hasFinale = v; }
+  get useCategories() { return this.current.data.useCategories; }
+  set useCategories(v) { this.current.data.useCategories = v; }
+  get discipline() { return this.current.data.discipline; }
+  set discipline(v) { this.current.data.discipline = v; }
+  get maxScore() { return this.current.data.maxScore; }
+  set maxScore(v) { this.current.data.maxScore = v; }
+  get refereeName() { return this.current.data.refereeName || ""; }
+  set refereeName(v) { this.current.data.refereeName = v; }
+  get eventDate() { return this.current.data.eventDate || ""; }
+  set eventDate(v) { this.current.data.eventDate = v; }
+  get venue() { return this.current.data.venue || ""; }
+  set venue(v) { this.current.data.venue = v; }
+
+  get lotteryList() { return this.current.data.lotteryList; }
+  set lotteryList(v) { this.current.data.lotteryList = v; }
+  get shootersData() { return this.current.data.shootersData; }
+  set shootersData(v) { this.current.data.shootersData = v; }
+  get sortedResults() { return this.current.data.sortedResults; }
+  set sortedResults(v) { this.current.data.sortedResults = v; }
+  get finaleFinalists() { return this.current.data.finaleFinalists; }
+  set finaleFinalists(v) { this.current.data.finaleFinalists = v; }
+
   disciplineText() {
-    if (this.discipline === "Vlastní…") return this.customDiscipline || "Vlastní";
-    return this.discipline;
+    return this.discipline || "";
+  }
+
+  // ── Soutěže (víc uložených najednou, přepínání) ──────────────────────────
+  _createCompetitionInternal(name) {
+    const data = defaultCompetitionData();
+    data.discipline = this.app?.defaultDiscipline || data.discipline;
+    data.maxScore = this.app?.defaultMaxScore || data.maxScore;
+    data.refereeName = this.app?.defaultRefereeName || "";
+    const c = { id: uid(), name: name || "Nová soutěž", createdAt: Date.now(), updatedAt: Date.now(), data };
+    this.competitions.push(c);
+    return c;
+  }
+
+  createCompetition(name) {
+    const c = this._createCompetitionInternal(name || "Nová soutěž");
+    this.activeId = c.id;
+    this.save();
+    this.notify();
+    return c;
+  }
+
+  switchCompetition(id) {
+    if (this.competitions.some((c) => c.id === id)) {
+      this.activeId = id;
+      this.save();
+      this.notify();
+    }
+  }
+
+  renameCompetition(id, name) {
+    const c = this.competitions.find((x) => x.id === id);
+    if (!c) return;
+    c.name = name || "Bez názvu";
+    if (c.data) c.data.competitionName = name || "";
+    this.save();
+    this.notify();
+  }
+
+  deleteCompetition(id) {
+    if (this.competitions.length <= 1) return false;
+    const idx = this.competitions.findIndex((c) => c.id === id);
+    if (idx === -1) return false;
+    this.competitions.splice(idx, 1);
+    if (this.activeId === id) this.activeId = this.competitions[0].id;
+    this.save();
+    this.notify();
+    return true;
+  }
+
+  /** @deprecated Zachováno kvůli zpětné kompatibilitě - resetuje AKTIVNÍ soutěž. */
+  newCompetition() {
+    const c = this.current;
+    c.data = defaultCompetitionData();
+    c.data.discipline = this.app.defaultDiscipline || c.data.discipline;
+    c.data.maxScore = this.app.defaultMaxScore || c.data.maxScore;
+    c.data.refereeName = this.app.defaultRefereeName || "";
+    c.name = "Nová soutěž";
+    this.save();
+    this.notify();
+  }
+
+  // ── Nastavení appky (vzhled, vlastní disciplíny/kategorie, výchozí hodnoty, řazení) ──
+  setTheme(theme) { this.app.theme = theme; this.save(); this.applyTheme(); }
+
+  applyTheme() {
+    const root = document.documentElement;
+    let effective = this.app.theme;
+    if (effective === "system") {
+      effective = (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+    }
+    root.setAttribute("data-theme", effective);
+  }
+
+  addCustomDiscipline(name) {
+    const n = (name || "").trim();
+    if (!n) return false;
+    if (!this.app.customDisciplines.includes(n)) this.app.customDisciplines.push(n);
+    this.save();
+    return true;
+  }
+
+  removeCustomDiscipline(name) {
+    this.app.customDisciplines = this.app.customDisciplines.filter((d) => d !== name);
+    this.save();
+  }
+
+  addCustomCategory(name, short) {
+    const n = (name || "").trim();
+    if (!n) return false;
+    if (this.app.customCategories.some((c) => c.name === n)) return false;
+    const s = (short || n.charAt(0).toUpperCase()).trim().slice(0, 3);
+    this.app.customCategories.push({ name: n, short: s });
+    this.save();
+    return true;
+  }
+
+  removeCustomCategory(name) {
+    this.app.customCategories = this.app.customCategories.filter((c) => c.name !== name);
+    this.save();
+  }
+
+  setSortConfig({ reverseDirection, useFault }) {
+    if (reverseDirection !== undefined) this.app.sortReverseDirection = reverseDirection;
+    if (useFault !== undefined) this.app.sortUseFault = useFault;
+    this.save();
   }
 
   // ── Perzistence (localStorage) ───────────────────────────────────────────
   toJSON() {
     return {
-      competitionName: this.competitionName,
-      numShooters: this.numShooters,
-      numItems: this.numItems,
-      hasFinale: this.hasFinale,
-      useCategories: this.useCategories,
-      discipline: this.discipline,
-      customDiscipline: this.customDiscipline,
-      maxScore: this.maxScore,
-      lotteryList: this.lotteryList,
-      shootersData: this.shootersData,
-      sortedResults: this.sortedResults,
-      finaleFinalists: this.finaleFinalists,
+      app: this.app,
+      competitions: this.competitions,
+      activeId: this.activeId,
     };
   }
 
   fromJSON(d) {
     if (!d || typeof d !== "object") return;
-    this.reset();
-    Object.assign(this, {
-      competitionName: d.competitionName ?? "",
-      numShooters: d.numShooters ?? 8,
-      numItems: d.numItems ?? 3,
-      hasFinale: !!d.hasFinale,
-      useCategories: !!d.useCategories,
-      discipline: d.discipline ?? "Americký TRAP",
-      customDiscipline: d.customDiscipline ?? "",
-      maxScore: d.maxScore ?? 25,
-      lotteryList: d.lotteryList ?? [],
-      shootersData: d.shootersData ?? [],
-      sortedResults: d.sortedResults ?? [],
-      finaleFinalists: d.finaleFinalists ?? [],
-    });
+    this.app = { ...defaultAppSettings(), ...(d.app || {}) };
+    this.competitions = Array.isArray(d.competitions) && d.competitions.length
+      ? d.competitions.map((c) => ({
+          id: c.id || uid(),
+          name: c.name || "Bez názvu",
+          createdAt: c.createdAt || Date.now(),
+          updatedAt: c.updatedAt || Date.now(),
+          data: { ...defaultCompetitionData(), ...(c.data || {}) },
+        }))
+      : [];
+    this.activeId = d.activeId || (this.competitions[0] && this.competitions[0].id) || null;
   }
 
   save() {
+    if (this.current) this.current.updatedAt = Date.now();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.toJSON()));
     } catch (e) { console.warn("Uložení selhalo:", e); }
@@ -112,23 +274,53 @@ class Store {
   load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) this.fromJSON(JSON.parse(raw));
+      if (raw) { this.fromJSON(JSON.parse(raw)); return; }
     } catch (e) { console.warn("Načtení selhalo:", e); }
-  }
 
-  newCompetition() {
-    this.reset();
-    this.save();
-    this.notify();
+    // Migrace ze starého formátu appky (jedna soutěž bez appSettings).
+    try {
+      const oldRaw = localStorage.getItem(OLD_STORAGE_KEY);
+      if (oldRaw) {
+        const old = JSON.parse(oldRaw);
+        this.app = defaultAppSettings();
+        const data = defaultCompetitionData();
+        Object.assign(data, {
+          competitionName: old.competitionName ?? "",
+          numShooters: old.numShooters ?? 8,
+          numItems: old.numItems ?? 3,
+          hasFinale: !!old.hasFinale,
+          useCategories: !!old.useCategories,
+          discipline: old.discipline === "Vlastní…" ? (old.customDiscipline || "Vlastní") : (old.discipline ?? "Americký TRAP"),
+          maxScore: old.maxScore ?? 25,
+          lotteryList: old.lotteryList ?? [],
+          shootersData: old.shootersData ?? [],
+          sortedResults: old.sortedResults ?? [],
+          finaleFinalists: old.finaleFinalists ?? [],
+        });
+        if (old.discipline === "Vlastní…" && old.customDiscipline) {
+          this.app.customDisciplines.push(old.customDiscipline);
+        }
+        const id = uid();
+        this.competitions = [{ id, name: data.competitionName || "Soutěž", createdAt: Date.now(), updatedAt: Date.now(), data }];
+        this.activeId = id;
+        this.save();
+        localStorage.removeItem(OLD_STORAGE_KEY);
+      }
+    } catch (e) { console.warn("Migrace starých dat selhala:", e); }
   }
 
   exportJSON() {
-    return JSON.stringify(this.toJSON(), null, 2);
+    return JSON.stringify(this.current, null, 2);
   }
 
   importJSON(text) {
     const d = JSON.parse(text);
-    this.fromJSON(d);
+    // Podporuje jak export jedné soutěže (nový formát), tak starý v1 formát.
+    const data = d.data ? d.data : d;
+    const c = this._createCompetitionInternal(data.competitionName || "Importovaná soutěž");
+    c.data = { ...defaultCompetitionData(), ...data };
+    c.name = c.data.competitionName || "Importovaná soutěž";
+    this.activeId = c.id;
     this.save();
     this.notify();
   }
@@ -269,16 +461,25 @@ class Store {
   }
 
   // ── Řazení / rozstřel ────────────────────────────────────────────────────
+  /** Pořadí položek, ve kterém se porovnávají při shodě celkového součtu. */
+  tieBreakOrder(ni) {
+    return this.app.sortReverseDirection
+      ? Array.from({ length: ni }, (_, i) => i + 1)        // 1..ni (od první)
+      : Array.from({ length: ni }, (_, i) => ni - i);       // ni..1 (od poslední - výchozí)
+  }
+
   /** Klíč pro řazení - pole čísel, nižší = lepší (vzestupné řazení). */
   sortKey(d, ni) {
     const total = num(d.total, 0);
     const tb = [];
-    for (let i = ni; i >= 1; i--) {
+    for (const i of this.tieBreakOrder(ni)) {
       const sc = num(d[`item${i}_score`], 0);
       tb.push(-sc);
-      const raw = d[`item${i}_fault`];
-      const ft = raw ? num(raw, -1) : -1;
-      tb.push(-ft);
+      if (this.app.sortUseFault) {
+        const raw = d[`item${i}_fault`];
+        const ft = raw ? num(raw, -1) : -1;
+        tb.push(-ft);
+      }
     }
     return [-total, ...tb];
   }
@@ -318,7 +519,6 @@ class Store {
   }
 
   evalRozstrel() {
-    const ni = this.numItems;
     const result = [...this.sortedResults];
     const round6 = (v) => Math.round(num(v, 0) * 1e6) / 1e6;
     const totalToIdx = new Map();
@@ -363,12 +563,14 @@ class Store {
     const base = num(d.total, 0);
     const fin = num(d.finale_score, 0);
     const tb = [];
-    for (let i = ni; i >= 1; i--) {
+    for (const i of this.tieBreakOrder(ni)) {
       const sc = num(d[`item${i}_score`], 0);
       tb.push(-sc);
-      const raw = d[`item${i}_fault`];
-      const ft = raw ? num(raw, -1) : -1;
-      tb.push(-ft);
+      if (this.app.sortUseFault) {
+        const raw = d[`item${i}_fault`];
+        const ft = raw ? num(raw, -1) : -1;
+        tb.push(-ft);
+      }
     }
     return [-(base + fin), ...tb, -fin];
   }
@@ -443,4 +645,3 @@ class Store {
 }
 
 export const store = new Store();
-export { num, fmtScore };

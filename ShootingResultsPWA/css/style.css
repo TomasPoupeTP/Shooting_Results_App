@@ -19,6 +19,26 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Světlý motiv - stejné proměnné, jiné hodnoty (přepíná se atributem na <html>). */
+:root[data-theme="light"] {
+  --bg-dark: #F3F4F6;
+  --bg-card: #FFFFFF;
+  --bg-input: #F0F1F3;
+  --bg-hover: #E7E9EC;
+  --accent: #B8820F;
+  --accent-dark: #96690C;
+  --text-primary: #1A1F24;
+  --text-muted: #5B6570;
+  --border: #D8DCE1;
+  --green: #1E7E34;
+  --red: #C0392B;
+  --gold: #96690C;
+  --top6-bg: #DFF3E1;
+  --top6-bd: #3FB950;
+  --tie-bg: #FBEBCB;
+  --tie-bd: #B8820F;
+}
+
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html, body {
@@ -204,6 +224,61 @@ table select { padding: 4px; font-size: 12px; }
 .stat-line:last-child { border-bottom: none; }
 .stat-line .label { color: var(--text-muted); }
 .stat-line .value { font-weight: 700; }
+
+/* Seznamy (soutěže, vlastní disciplíny/kategorie) */
+.list-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px; border-bottom: 1px solid var(--border);
+}
+.list-item:last-child { border-bottom: none; }
+.list-item .main { flex: 1; min-width: 0; }
+.list-item .title { font-weight: 600; }
+.list-item .sub { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+.list-item.active { background: var(--top6-bg); }
+
+.pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent); color: #1a1200; font-size: 11px; font-weight: 700;
+}
+
+.radio-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+.radio-row input { width: 18px; height: 18px; accent-color: var(--accent); }
+.radio-row label { flex: 1; }
+
+.section-title {
+  font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-muted); margin: 18px 0 6px; padding: 0 2px;
+}
+.section-title:first-child { margin-top: 0; }
+
+.help-block { line-height: 1.6; font-size: 14px; }
+.help-block h3 { color: var(--accent); font-size: 15px; margin: 18px 0 6px; }
+.help-block h3:first-child { margin-top: 0; }
+.help-block p { margin: 6px 0; }
+.help-block ol, .help-block ul { margin: 6px 0; padding-left: 20px; }
+.help-block li { margin: 4px 0; }
+.help-block code {
+  background: var(--bg-input); padding: 1px 5px; border-radius: 4px; font-size: 13px;
+}
+
+/* Bottom-sheet menu (Více) */
+.sheet-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 80;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.sheet {
+  background: var(--bg-card); border-top: 2px solid var(--accent);
+  border-radius: 16px 16px 0 0; width: 100%; max-width: 640px;
+  max-height: 82vh; overflow: auto; padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+}
+.sheet-btn {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  text-align: left; padding: 14px 10px; font-size: 15px; background: none;
+  border-bottom: 1px solid var(--border); border-radius: 0; color: var(--text-primary);
+}
+.sheet-btn:last-child { border-bottom: none; }
+.sheet-btn .icon { font-size: 18px; width: 22px; text-align: center; }
 
 /* Presentation mode */
 .presentation {

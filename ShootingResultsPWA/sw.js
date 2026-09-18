@@ -8,7 +8,7 @@
 //
 // Verze zvyš při každé změně tohoto souboru nebo seznamu ASSETS, aby
 // prohlížeč spolehlivě poznal, že je k dispozici nová verze SW.
-const CACHE_NAME = "shooting-results-pwa-v3";
+const CACHE_NAME = "shooting-results-pwa-v4";
 
 const ASSETS = [
   "./",
@@ -27,6 +27,10 @@ const ASSETS = [
   "js/views/finale.js",
   "js/views/topstats.js",
   "js/views/presentation.js",
+  "js/views/menu.js",
+  "js/views/competitions.js",
+  "js/views/appsettings.js",
+  "js/views/help.js",
   "vendor/jspdf.umd.min.js",
   "vendor/jspdf.plugin.autotable.min.js",
   "vendor/DejaVuSans-normal.js",

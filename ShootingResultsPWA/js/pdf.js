@@ -31,10 +31,24 @@ function pdfHeader(doc, extra) {
   doc.text(store.competitionName || "(bez názvu)", pageWidth / 2, y, { align: "center" });
   y += 6;
   doc.setFont(FONT, "normal"); doc.setFontSize(9);
-  const dateStr = new Date().toLocaleDateString("cs-CZ");
-  doc.text(`${store.disciplineText()}  •  Max. ${store.maxScore} terčů/položku  •  ${dateStr}`,
-    pageWidth / 2, y, { align: "center" });
+  const dateStr = store.eventDate
+    ? new Date(store.eventDate + "T00:00:00").toLocaleDateString("cs-CZ")
+    : new Date().toLocaleDateString("cs-CZ");
+  const parts = [store.disciplineText(), `Max. ${store.maxScore} terčů/položku`, dateStr];
+  if (store.venue) parts.push(store.venue);
+  doc.text(parts.join("  •  "), pageWidth / 2, y, { align: "center" });
   return y + 6;
+}
+
+/** Podpisový řádek hlavního rozhodčího pod tabulkou (jen pokud je jméno vyplněné). */
+function pdfSignature(doc, y) {
+  if (!store.refereeName) return y;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const sigY = Math.min(y + 16, pageHeight - 14);
+  doc.setFont(FONT, "normal"); doc.setFontSize(9); doc.setTextColor(0);
+  doc.text(`Hlavní rozhodčí: ${store.refereeName}`, 12, sigY);
+  doc.text("Podpis: ___________________________", 12, sigY + 8);
+  return sigY + 8;
 }
 
 function resultsHead(ni) {
@@ -98,8 +112,9 @@ export function exportResultsPdf() {
       y = addResultsTable(doc, y + 7, group, ni) + 6;
     }
   } else {
-    addResultsTable(doc, y, store.sortedResults, ni);
+    y = addResultsTable(doc, y, store.sortedResults, ni);
   }
+  pdfSignature(doc, y);
   doc.save(pdfFileName("vysledky"));
 }
 
@@ -127,6 +142,7 @@ export function exportFinalePdf() {
 
   doc.setFont(FONT, "normal"); doc.setFontSize(7); doc.setTextColor(120);
   doc.text("* Fin.pol. = finálová položka;  Celkem = součet kvalifikace + finálová položka", 12, y + 6);
+  pdfSignature(doc, y + 6);
   doc.save(pdfFileName("finale"));
 }
 
