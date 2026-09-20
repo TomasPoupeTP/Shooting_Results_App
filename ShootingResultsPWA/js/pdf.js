@@ -5,8 +5,8 @@ import { catShort } from "./constants.js";
 
 const FONT = "DejaVuSans";
 
-function newDoc() {
-  const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
+function newDoc(orientation = "portrait") {
+  const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4", orientation });
   doc.addFileToVFS("DejaVuSans-normal.ttf", window.DEJAVU_SANS_NORMAL_B64);
   doc.addFont("DejaVuSans-normal.ttf", FONT, "normal");
   doc.addFileToVFS("DejaVuSans-bold.ttf", window.DEJAVU_SANS_BOLD_B64);
@@ -160,6 +160,81 @@ export function exportLotteryPdf() {
     margin: { left: 15, right: 15 },
   });
   doc.save(pdfFileName("startovni_listina"));
+}
+
+// ── Položkové listy (score sheets pro ruční zápis na střelnici) ──────────
+// A4 naležato, jedna skupina (šestice) = jedna strana, v ní jedna mini-
+// tabulka na střelce: jmenovka, hlavička s očíslovanými terči a řádek na
+// položku (kolo) pro ruční zápis zásahů - viz shooting_results_app.py.
+const SHEET_ROW_H = { banner: 5.5, header: 4.0, item: 6.2 };
+
+function drawShooterSheet(doc, startY, slot, ni, mx, colWidths, marginL, marginR) {
+  const ncols = mx + 3;
+  const banner = slot.empty
+    ? `St. č. ${slot.start}   ·   ………………………………………………………`
+    : `St. č. ${slot.start}   ·   ${slot.name}`;
+
+  const body = [];
+  body.push([{
+    content: banner, colSpan: ncols,
+    styles: { halign: "left", fontStyle: "bold", fontSize: 10, fillColor: [232, 232, 232], minCellHeight: SHEET_ROW_H.banner, cellPadding: { top: 1, right: 1, bottom: 1, left: 2 } },
+  }]);
+
+  const headerCells = [{ content: "Pol.", styles: { fontStyle: "bold" } }];
+  for (let i = 1; i <= mx; i++) headerCells.push({ content: String(i) });
+  headerCells.push({ content: "Celkem" }, { content: "Celkové" });
+  body.push(headerCells.map((c) => ({ ...c, styles: { ...(c.styles || {}), fillColor: [242, 242, 242], fontSize: 6.5, minCellHeight: SHEET_ROW_H.header } })));
+
+  for (let it = 1; it <= ni; it++) {
+    const row = [{ content: String(it), styles: { fontStyle: "bold", fontSize: 8, minCellHeight: SHEET_ROW_H.item } }];
+    for (let b = 0; b < mx; b++) row.push({ content: "", styles: { minCellHeight: SHEET_ROW_H.item } });
+    row.push({ content: "", styles: { minCellHeight: SHEET_ROW_H.item } }); // Celkem (za položku)
+    if (it === 1) row.push({ content: "", rowSpan: ni, styles: { minCellHeight: SHEET_ROW_H.item } }); // Celkové (přes všechny položky)
+    body.push(row);
+  }
+
+  const columnStyles = {};
+  colWidths.forEach((w, i) => { columnStyles[i] = { cellWidth: w }; });
+
+  doc.autoTable({
+    startY,
+    body,
+    theme: "grid",
+    styles: {
+      font: FONT, fontSize: 6.5, halign: "center", valign: "middle",
+      lineColor: [0, 0, 0], lineWidth: 0.15, textColor: [0, 0, 0], cellPadding: 0.6,
+    },
+    columnStyles,
+    margin: { left: marginL, right: marginR, top: 10, bottom: 8 },
+  });
+
+  return doc.lastAutoTable.finalY;
+}
+
+/** Vykreslí položkové listy - `rounds` je pole skupin, každá skupina pole
+ * "slotů" ({start, name, empty}); jedna skupina = jedna strana A4 naležato. */
+export function exportItemSheetsPdf(rounds, ni, mx, titleForRound, filenameKind) {
+  const doc = newDoc("landscape");
+  const marginL = 10, marginT = 10, marginR = 10;
+  const pageW = doc.internal.pageSize.getWidth();
+  const usableW = pageW - marginL - marginR;
+  const mxClamped = Math.max(1, Math.min(mx, 60));
+  const idxW = 8, sumW = 14, totW = 15;
+  const boxW = Math.max((usableW - idxW - sumW - totW) / mxClamped, 3);
+  const colWidths = [idxW, ...Array(mxClamped).fill(boxW), sumW, totW];
+
+  rounds.forEach((slots, ri) => {
+    if (ri > 0) doc.addPage();
+    let y = marginT;
+    doc.setFont(FONT, "bold"); doc.setFontSize(14); doc.setTextColor(0);
+    doc.text(titleForRound(ri + 1), marginL, y + 4);
+    y += 9;
+    slots.forEach((slot) => {
+      y = drawShooterSheet(doc, y, slot, ni, mxClamped, colWidths, marginL, marginR) + 1.8;
+    });
+  });
+
+  doc.save(pdfFileName(filenameKind));
 }
 
 function pdfFileName(kind) {

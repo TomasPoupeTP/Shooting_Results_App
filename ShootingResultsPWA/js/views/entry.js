@@ -4,6 +4,7 @@ import { el, clear } from "../dom.js";
 import { navigate, toast } from "../main.js";
 import { t } from "../i18n.js";
 import { choiceDialog } from "../dialog.js";
+import { openItemSheetsDialog } from "../itemsheets.js";
 
 export function renderEntry(root) {
   store.ensureEntryRows();
@@ -34,6 +35,7 @@ export function renderEntry(root) {
     el("button", { class: "btn-ghost btn-sm", text: t("− Položka"), onclick: () => { store.removeItemColumn(); clear(root); renderEntry(root); } }),
     el("button", { class: "btn-success btn-sm", text: t("💾 Uložit"), onclick: () => { store.save(); toast(); } }),
     el("button", { class: "btn-ghost btn-sm", text: t("🖥 Prezentace"), onclick: () => startPresentation() }),
+    el("button", { class: "btn-ghost btn-sm", text: t("🎯 Položkové listy"), onclick: () => openItemSheetsDialog(store.shootersData) }),
     el("button", {
       class: "btn-primary btn-sm", text: t("Seřadit →"),
       onclick: async () => {

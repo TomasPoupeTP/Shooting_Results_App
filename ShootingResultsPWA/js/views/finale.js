@@ -4,6 +4,7 @@ import { el, clear } from "../dom.js";
 import { navigate, toast } from "../main.js";
 import { exportFinalePdf } from "../pdf.js";
 import { t } from "../i18n.js";
+import { openFinaleSheetDialog } from "../itemsheets.js";
 
 export function renderFinale(root) {
   store.buildFinalists();
@@ -20,6 +21,7 @@ export function renderFinale(root) {
     el("button", { class: "btn-primary btn-sm", text: t("Seřadit finále"), onclick: () => { collect(); store.sortFinale(); renderGroups(); } }),
     el("button", { class: "btn-success btn-sm", text: t("💾 Uložit"), onclick: () => { collect(); store.save(); toast(); } }),
     el("button", { class: "btn-success btn-sm", text: t("🖨 Tisk PDF"), onclick: () => { collect(); store.save(); exportFinalePdf(); } }),
+    el("button", { class: "btn-ghost btn-sm", text: t("🎯 Položkový list finále"), onclick: () => openFinaleSheetDialog() }),
   ]);
 
   const groupsWrap = el("div", {});

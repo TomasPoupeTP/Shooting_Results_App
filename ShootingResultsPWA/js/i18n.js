@@ -214,6 +214,33 @@ const EN = {
   "Celkově": "Overall",
   "Po kategoriích": "By category",
   "Zatím žádné výsledky - vyplň Zápis.": "No results yet - fill in Scoring.",
+
+  // Item sheets (položkové listy)
+  "🎯 Položkové listy": "🎯 Score sheets",
+  "🎯 Položkový list finále": "🎯 Final score sheet",
+  "Střelců:": "Shooters:",
+  "Položek na střelce:": "Rounds per shooter:",
+  "Max. terčů:": "Max. targets:",
+  "Automaticky vyvážené skupiny (doporučeno)": "Automatic balanced groups (recommended)",
+  "Pevný počet na skupinu:": "Fixed number per group:",
+  "Vlastní rozpis (např. 6,6,5):": "Custom split (e.g. 6,6,5):",
+  "např. 6,6,5": "e.g. 6,6,5",
+  "Prázdné skupiny navíc (stránky)": "Extra blank groups (pages)",
+  "Skupiny (lidí):": "Groups (people):",
+  "stran:": "pages:",
+  "prázdných míst:": "empty slots:",
+  "🖨 Generovat PDF": "🖨 Generate PDF",
+  "Skupina": "Group",
+  "PDF položkových listů vygenerováno ✔": "Score sheets PDF generated ✔",
+  "Nejdřív musí být určeni finalisté.": "Finalists must be determined first.",
+  "Finalistů:": "Finalists:",
+  "samostatná skupina pro každou kategorii": "separate group for each category",
+  "vždy jedna skupina": "always one group",
+  "Počet terčů pro finále": "Number of targets for the final",
+  "Druh zápisu finále:": "Final sheet layout:",
+  "Od 1 – nejlepší na start č. 1": "From 1 – best shooter on start no. 1",
+  "Od 6 – nejhorší ze šestice na start č. 1 (pozpátku)": "From 6 – worst of the group on start no. 1 (reversed)",
+  "PDF položkového listu finále vygenerováno ✔": "Final score sheet PDF generated ✔",
 };
 
 export function t(cs) {

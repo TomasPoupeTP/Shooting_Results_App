@@ -3,6 +3,7 @@ import { el, clear } from "../dom.js";
 import { navigate, toast } from "../main.js";
 import { exportLotteryPdf } from "../pdf.js";
 import { t } from "../i18n.js";
+import { openItemSheetsDialog } from "../itemsheets.js";
 
 export function renderLottery(root) {
   const topbar = el("div", { class: "topbar" }, [
@@ -66,6 +67,13 @@ export function renderLottery(root) {
         toast(`${n} ${t("střelců vloženo do zápisu")}`);
         store.unlockTab("entry");
         navigate("entry");
+      },
+    }),
+    el("button", {
+      class: "btn-ghost", text: t("🎯 Položkové listy"),
+      onclick: () => {
+        if (!store.lotteryList.length) { toast("Nejdřív přidej střelce"); return; }
+        openItemSheetsDialog(store.lotteryList);
       },
     }),
   ]);
