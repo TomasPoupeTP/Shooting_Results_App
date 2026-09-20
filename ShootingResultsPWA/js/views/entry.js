@@ -159,5 +159,11 @@ export function renderEntry(root) {
 }
 
 function startPresentation() {
+  // V desktopové (Electron) appce se prezentace otevírá ve vlastním OS okně
+  // (viz preload.js/desktop/main.js), aby šla přetáhnout na externí monitor.
+  if (typeof window !== "undefined" && window.desktopAPI && window.desktopAPI.openPresentationWindow) {
+    window.desktopAPI.openPresentationWindow();
+    return;
+  }
   import("./presentation.js").then((m) => m.openPresentation());
 }

@@ -2,12 +2,17 @@
 // soubory PWA appky (žádný build krok, žádná závislost na internetu) a
 // otevře je v BrowserWindow. Server běží jen na localhost, appka je tedy
 // plně funkční offline (přesně jako PWA, jen bez prohlížeče okolo).
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, shell, ipcMain, screen, dialog } = require("electron");
 const path = require("path");
 const http = require("http");
+const https = require("https");
 const fs = require("fs");
+const os = require("os");
 
 const APP_DIR = path.join(__dirname, "app");
+const REPO = "TomasPoupeTP/Shooting_Results_App";
+const VERSION_URL = `https://github.com/${REPO}/releases/latest/download/version.json`;
+const EXE_URL = `https://github.com/${REPO}/releases/latest/download/ShootingResults-Setup.exe`;
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -50,6 +55,7 @@ function startServer() {
 }
 
 let mainWindow = null;
+let presentationWindow = null;
 let server = null;
 
 async function createWindow() {
@@ -67,6 +73,7 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, "preload.js"),
     },
   });
 
@@ -86,7 +93,113 @@ async function createWindow() {
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
-app.whenReady().then(createWindow);
+/** Otevře prezentaci ve VLASTNÍM okně (ne jako overlay v hlavním okně), aby
+ * šlo přetáhnout na externí monitor/projektor. Pokud appka detekuje druhý
+ * displej, okno se rovnou umístí na něj a přepne do fullscreenu. */
+function openPresentationWindow() {
+  if (!server) return;
+  if (presentationWindow && !presentationWindow.isDestroyed()) {
+    presentationWindow.focus();
+    return;
+  }
+  const port = server.address().port;
+  const displays = screen.getAllDisplays();
+  const primary = screen.getPrimaryDisplay();
+  const secondary = displays.find((d) => d.id !== primary.id);
+  const target = secondary || primary;
+
+  presentationWindow = new BrowserWindow({
+    x: target.bounds.x,
+    y: target.bounds.y,
+    width: target.bounds.width,
+    height: target.bounds.height,
+    autoHideMenuBar: true,
+    icon: path.join(__dirname, "icon.png"),
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  presentationWindow.setMenuBarVisibility(false);
+  presentationWindow.loadURL(`http://127.0.0.1:${port}/index.html?presentation=1`);
+  if (secondary) presentationWindow.setFullScreen(true);
+  presentationWindow.on("closed", () => { presentationWindow = null; });
+}
+
+ipcMain.handle("open-presentation-window", () => openPresentationWindow());
+
+// ── Kontrola aktualizací (jen když je PC online - jinak potichu selže) ────
+function httpGetJson(url, redirects = 5) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { "User-Agent": "ShootingResultsDesktop" }, timeout: 6000 }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirects > 0) {
+        res.resume();
+        resolve(httpGetJson(res.headers.location, redirects - 1));
+        return;
+      }
+      if (res.statusCode !== 200) { res.resume(); reject(new Error("HTTP " + res.statusCode)); return; }
+      let data = "";
+      res.on("data", (c) => { data += c; });
+      res.on("end", () => { try { resolve(JSON.parse(data)); } catch (e) { reject(e); } });
+    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+  });
+}
+
+function downloadFile(url, destPath, redirects = 5) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { "User-Agent": "ShootingResultsDesktop" } }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirects > 0) {
+        res.resume();
+        resolve(downloadFile(res.headers.location, destPath, redirects - 1));
+        return;
+      }
+      if (res.statusCode !== 200) { res.resume(); reject(new Error("HTTP " + res.statusCode)); return; }
+      const fileStream = fs.createWriteStream(destPath);
+      res.pipe(fileStream);
+      fileStream.on("finish", () => fileStream.close(() => resolve()));
+      fileStream.on("error", reject);
+    });
+    req.on("error", reject);
+  });
+}
+
+async function checkForUpdates() {
+  try {
+    const localVersionPath = path.join(APP_DIR, "version.json");
+    if (!fs.existsSync(localVersionPath)) return;
+    const local = JSON.parse(fs.readFileSync(localVersionPath, "utf8"));
+    const remote = await httpGetJson(VERSION_URL);
+    if (!remote || !remote.commit || remote.commit === local.commit) return;
+
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "Dostupná aktualizace",
+      message: `Je dostupná novější verze appky (${remote.commit}) - aktuálně máš ${local.commit}.`,
+      detail: "Chceš ji teď stáhnout a nainstalovat? Appka se po stažení zavře a spustí se instalátor.",
+      buttons: ["Stáhnout a nainstalovat", "Později"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response !== 0) return;
+
+    const tmpPath = path.join(os.tmpdir(), "ShootingResults-Setup.exe");
+    await downloadFile(EXE_URL, tmpPath);
+    await shell.openPath(tmpPath);
+    app.quit();
+  } catch (e) {
+    // Appka je offline, nebo je GitHub nedostupný - normální provoz appky
+    // to nijak neomezuje, jen se potichu přeskočí kontrola aktualizací.
+    console.warn("Kontrola aktualizací selhala (appka běží dál normálně):", e.message);
+  }
+}
+
+app.whenReady().then(async () => {
+  await createWindow();
+  checkForUpdates();
+});
 
 app.on("window-all-closed", () => {
   if (server) server.close();

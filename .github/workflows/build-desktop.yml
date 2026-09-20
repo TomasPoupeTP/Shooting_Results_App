@@ -26,9 +26,20 @@ jobs:
         with:
           node-version: 20
 
+      - name: Zjistit verzi (git hash)
+        id: ver
+        shell: bash
+        run: echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Zkopírovat PWA appku do desktop/app
         shell: pwsh
         run: Copy-Item -Recurse -Force ShootingResultsPWA desktop/app
+
+      - name: Zapsat verzi do desktop/app/version.json (zabalí se do appky i pro runtime kontrolu aktualizací)
+        shell: bash
+        run: |
+          echo "{\"commit\": \"${{ steps.ver.outputs.sha }}\", \"date\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > desktop/app/version.json
+          cat desktop/app/version.json
 
       - name: Nainstalovat závislosti
         working-directory: desktop
@@ -37,11 +48,6 @@ jobs:
       - name: Sestavit Windows instalátor (.exe)
         working-directory: desktop
         run: npm run build:win
-
-      - name: Zjistit verzi (git hash)
-        id: ver
-        shell: bash
-        run: echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Publikovat/aktualizovat GitHub Release
         uses: softprops/action-gh-release@v2
@@ -53,5 +59,10 @@ jobs:
 
             Odpovídá commitu `${{ steps.ver.outputs.sha }}` na větvi `pwa-app`.
             Stáhni si `ShootingResults-Setup.exe` a nainstaluj - appka pak funguje i bez internetu.
+
+            Appka si při každém spuštění (pokud je PC online) sama zkontroluje, jestli tahle
+            verze není zastaralá, a případně nabídne stažení a instalaci nové.
           make_latest: true
-          files: desktop/dist/ShootingResults-Setup.exe
+          files: |
+            desktop/dist/ShootingResults-Setup.exe
+            desktop/app/version.json

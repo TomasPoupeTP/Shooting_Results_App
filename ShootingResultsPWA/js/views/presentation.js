@@ -27,7 +27,7 @@ function computeGroups(byCategory) {
 /** Otevře prezentaci. Pokud jsou zapnuté kategorie, nejdřív se zeptá, jestli
  * zobrazovat pořadí celkově nebo po kategoriích (nezávisle na tom, jak se
  * pak reálně počítají Výsledky/Finále - jde jen o živý náhled na obrazovce). */
-export async function openPresentation() {
+export async function openPresentation({ standalone = false } = {}) {
   let byCategory = false;
   if (store.useCategories) {
     const overallMark = store.rankingMode === "overall" ? "✓ " : "";
@@ -116,6 +116,11 @@ export async function openPresentation() {
   }
 
   function tick() {
+    // Samostatné okno prezentace (Electron, na externím monitoru) má vlastní
+    // instanci store v paměti - o změnách z hlavního okna (živé psaní skóre
+    // do Zápisu) se dozví jen tím, že si při každém tiku znovu načte aktuální
+    // stav z localStorage (sdíleného mezi okny stejného původu).
+    if (standalone) store.load();
     const ni = store.numItems;
     const groups = computeGroups(byCategory);
     const snapshot = JSON.stringify(groups.map((g) => [
@@ -148,6 +153,7 @@ export async function openPresentation() {
 
   function closePresentation() {
     clearInterval(timer); clearInterval(scrollTimer);
+    if (standalone) { window.close(); return; }
     overlay.remove();
   }
   overlay._close = closePresentation;

@@ -94,22 +94,32 @@ if (window.matchMedia) {
   });
 }
 
-// V desktopové (Electron) verzi appka běží čistě lokálně a service worker
-// (offline cache přes HTTP) tam nemá smysl - navíc appka sama sebe
-// nepatchuje síťově, takže registrace by jen zbytečně selhávala.
-if (!isElectron && "serviceWorker" in navigator) {
-  // Když nová verze service workeru převezme kontrolu (po aktualizaci aplikace),
-  // stránka se sama jednou obnoví - jinak by běžela dál na starém, už
-  // stažením nahrazeném JS kódu až do dalšího ručního refreshe.
-  let refreshingAfterSwUpdate = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (refreshingAfterSwUpdate) return;
-    refreshingAfterSwUpdate = true;
-    window.location.reload();
-  });
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
-  });
-}
+// V Electronu se prezentace otevírá ve vlastním OS okně (desktop/main.js),
+// aby šla přetáhnout na externí monitor/projektor - to okno načte appku
+// s "?presentation=1" a rovnou skočí do prezentace, bez normální appky
+// okolo (viz openPresentation({ standalone: true }) v presentation.js).
+const isPresentationWindow = new URLSearchParams(window.location.search).get("presentation") === "1";
 
-render();
+if (isPresentationWindow) {
+  import("./views/presentation.js").then((m) => m.openPresentation({ standalone: true }));
+} else {
+  // V desktopové (Electron) verzi appka běží čistě lokálně a service worker
+  // (offline cache přes HTTP) tam nemá smysl - navíc appka sama sebe
+  // nepatchuje síťově, takže registrace by jen zbytečně selhávala.
+  if (!isElectron && "serviceWorker" in navigator) {
+    // Když nová verze service workeru převezme kontrolu (po aktualizaci aplikace),
+    // stránka se sama jednou obnoví - jinak by běžela dál na starém, už
+    // stažením nahrazeném JS kódu až do dalšího ručního refreshe.
+    let refreshingAfterSwUpdate = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshingAfterSwUpdate) return;
+      refreshingAfterSwUpdate = true;
+      window.location.reload();
+    });
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+
+  render();
+}
