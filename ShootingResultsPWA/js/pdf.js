@@ -182,14 +182,14 @@ function drawShooterSheet(doc, startY, slot, ni, mx, colWidths, marginL, marginR
 
   const headerCells = [{ content: "Pol.", styles: { fontStyle: "bold" } }];
   for (let i = 1; i <= mx; i++) headerCells.push({ content: String(i) });
-  headerCells.push({ content: "Celkem" }, { content: "Celkové" });
+  headerCells.push({ content: "Za položku" }, { content: "Součet" });
   body.push(headerCells.map((c) => ({ ...c, styles: { ...(c.styles || {}), fillColor: [242, 242, 242], fontSize: 6.5, minCellHeight: SHEET_ROW_H.header } })));
 
   for (let it = 1; it <= ni; it++) {
     const row = [{ content: String(it), styles: { fontStyle: "bold", fontSize: 8, minCellHeight: SHEET_ROW_H.item } }];
     for (let b = 0; b < mx; b++) row.push({ content: "", styles: { minCellHeight: SHEET_ROW_H.item } });
-    row.push({ content: "", styles: { minCellHeight: SHEET_ROW_H.item } }); // Celkem (za položku)
-    if (it === 1) row.push({ content: "", rowSpan: ni, styles: { minCellHeight: SHEET_ROW_H.item } }); // Celkové (přes všechny položky)
+    row.push({ content: "", styles: { minCellHeight: SHEET_ROW_H.item } }); // Za položku
+    if (it === 1) row.push({ content: "", rowSpan: ni, styles: { minCellHeight: SHEET_ROW_H.item } }); // Součet (přes všechny položky)
     body.push(row);
   }
 
