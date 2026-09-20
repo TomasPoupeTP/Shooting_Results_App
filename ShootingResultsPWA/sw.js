@@ -6,9 +6,13 @@
 // nahrání opravy aplikace aktualizuje hned při dalším otevření se signálem,
 // místo aby donekonečna servírovala starou (rozbitou) verzi z cache.
 //
-// Verze zvyš při každé změně tohoto souboru nebo seznamu ASSETS, aby
-// prohlížeč spolehlivě poznal, že je k dispozici nová verze SW.
-const CACHE_NAME = "shooting-results-pwa-v7";
+// Verze zvyš při KAŽDÉM nasazení, které mění obsah některého z precachovaných
+// souborů (i beze změny tohoto souboru nebo seznamu ASSETS) - jen tak prohlížeč
+// u už otevřené (dlouho běžící) session spolehlivě pozná, že je nová verze SW,
+// a spustí se auto-reload z main.js. Nová session dostane aktuální obsah vždy
+// (network-first), ale bez bumpnutí verze by u NEZAVŘENÉ karty appka mohla
+// zůstat na starém JS/CSS až do dalšího ručního reloadu.
+const CACHE_NAME = "shooting-results-pwa-v8";
 
 const ASSETS = [
   "./",

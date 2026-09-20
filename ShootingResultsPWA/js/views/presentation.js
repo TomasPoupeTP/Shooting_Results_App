@@ -1,5 +1,4 @@
 import { store, num } from "../state.js";
-import { catShort } from "../constants.js";
 import { el, clear } from "../dom.js";
 import { t } from "../i18n.js";
 import { choiceDialog } from "../dialog.js";
@@ -104,9 +103,13 @@ export async function openPresentation() {
       const raw = d[`item${i + 1}_score`];
       return el("div", { class: "score", text: raw === undefined || raw === null || String(raw).trim() === "" ? "–" : String(raw) });
     });
+    const nameEl = el("div", { class: "name" }, [
+      `${d.surname || ""} ${d.name || ""}`.trim(),
+      d.category ? el("span", { class: "cat-badge", text: d.category }) : null,
+    ]);
     return el("div", { class: `pres-row ${isTop6 ? "top6" : ""}` }, [
       el("div", { class: "rank", text: String(idx + 1) + (isTie ? "*" : "") }),
-      el("div", { class: "name", text: `${d.surname || ""} ${d.name || ""}${d.category ? " (" + catShort(d.category) + ")" : ""}` }),
+      nameEl,
       el("div", { class: "scores" }, scores),
       el("div", { class: "total", text: Number.isInteger(total) ? String(total) : String(total) }),
     ]);
