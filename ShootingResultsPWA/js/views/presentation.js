@@ -2,19 +2,20 @@ import { store, num } from "../state.js";
 import { catShort } from "../constants.js";
 import { el, clear } from "../dom.js";
 import { t } from "../i18n.js";
+import { choiceDialog } from "../dialog.js";
 
 let timer = null;
 let scrollTimer = null;
 
 const PAUSE_MS = 2200;
 
-/** Rozdělí aktuální data zápisu do skupin dle kategorie (pokud je aktivní
- * řazení "po kategoriích"), stejně jako store.goToSorted() - prezentace
+/** Rozdělí aktuální data zápisu do skupin dle kategorie (pokud byl zvolen
+ * režim "po kategoriích" v dialogu při otevření prezentace) - prezentace
  * pracuje živě nad shootersData, ne až nad hotovými store.sortedResults. */
-function computeGroups() {
+function computeGroups(byCategory) {
   const ni = store.numItems;
   const raw = store.shootersData.filter((d) => d.surname || d.name);
-  if (store.useCategories && store.rankingMode === "byCategory") {
+  if (byCategory) {
     const cats = [...new Set(raw.map((d) => d.category || ""))].sort();
     return cats.map((cat) => ({
       category: cat,
@@ -24,8 +25,22 @@ function computeGroups() {
   return [{ category: null, items: store.sortShooters(raw, ni) }];
 }
 
-export function openPresentation() {
-  const byCategory = store.useCategories && store.rankingMode === "byCategory";
+/** Otevře prezentaci. Pokud jsou zapnuté kategorie, nejdřív se zeptá, jestli
+ * zobrazovat pořadí celkově nebo po kategoriích (nezávisle na tom, jak se
+ * pak reálně počítají Výsledky/Finále - jde jen o živý náhled na obrazovce). */
+export async function openPresentation() {
+  let byCategory = false;
+  if (store.useCategories) {
+    const overallMark = store.rankingMode === "overall" ? "✓ " : "";
+    const byCatMark = store.rankingMode === "byCategory" ? "✓ " : "";
+    const mode = await choiceDialog(t("Jak zobrazit prezentaci?"), [
+      { label: overallMark + t("Celkově (jedno pořadí přes všechny kategorie)"), value: "overall" },
+      { label: byCatMark + t("Po kategoriích (samostatné pořadí pro každou kategorii)"), value: "byCategory" },
+    ]);
+    if (!mode) return;
+    byCategory = mode === "byCategory";
+  }
+
   const overlay = el("div", { class: "presentation" });
 
   const closeBtn = el("button", { class: "btn-ghost pres-close", text: t("✕ Zavřít"), onclick: closePresentation });
@@ -73,18 +88,37 @@ export function openPresentation() {
     });
   }
 
-  function renderRow(d, idx, isTop6, isTie) {
+  function renderHeaderRow(ni) {
+    const scores = Array.from({ length: ni }, (_, i) => el("div", { class: "score", text: `P${i + 1}` }));
+    return el("div", { class: "pres-row pres-header" }, [
+      el("div", { class: "rank" }),
+      el("div", { class: "name" }),
+      el("div", { class: "scores" }, scores),
+      el("div", { class: "total", text: t("Celkem") }),
+    ]);
+  }
+
+  function renderRow(d, ni, idx, isTop6, isTie) {
     const total = num(d.total, 0);
+    const scores = Array.from({ length: ni }, (_, i) => {
+      const raw = d[`item${i + 1}_score`];
+      return el("div", { class: "score", text: raw === undefined || raw === null || String(raw).trim() === "" ? "–" : String(raw) });
+    });
     return el("div", { class: `pres-row ${isTop6 ? "top6" : ""}` }, [
       el("div", { class: "rank", text: String(idx + 1) + (isTie ? "*" : "") }),
       el("div", { class: "name", text: `${d.surname || ""} ${d.name || ""}${d.category ? " (" + catShort(d.category) + ")" : ""}` }),
+      el("div", { class: "scores" }, scores),
       el("div", { class: "total", text: Number.isInteger(total) ? String(total) : String(total) }),
     ]);
   }
 
   function tick() {
-    const groups = computeGroups();
-    const snapshot = JSON.stringify(groups.map((g) => [g.category, g.items.map((d) => [d.surname, d.name, d.category, d.total])]));
+    const ni = store.numItems;
+    const groups = computeGroups(byCategory);
+    const snapshot = JSON.stringify(groups.map((g) => [
+      g.category,
+      g.items.map((d) => [d.surname, d.name, d.category, d.total, ...Array.from({ length: ni }, (_, i) => d[`item${i + 1}_score`])]),
+    ]));
     // Pokud se data nezměnila, nepřekreslovat (a nepřerušovat probíhající scroll).
     if (snapshot === lastSnapshot) return;
     lastSnapshot = snapshot;
@@ -96,9 +130,9 @@ export function openPresentation() {
       if (!items.length) return;
       any = true;
       if (byCategory) inner.append(el("div", { class: "section-title", text: category || t("Bez kategorie") }));
-      const ni = store.numItems;
       const ties = store.findTiedIndices(items, ni, 6);
-      items.forEach((d, idx) => inner.append(renderRow(d, idx, idx < 6, ties.has(idx))));
+      inner.append(renderHeaderRow(ni));
+      items.forEach((d, idx) => inner.append(renderRow(d, ni, idx, idx < 6, ties.has(idx))));
     });
     if (!any) inner.append(el("div", { class: "empty-state", text: t("Zatím žádné výsledky - vyplň Zápis.") }));
     list.append(inner);

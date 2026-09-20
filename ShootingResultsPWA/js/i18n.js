@@ -213,6 +213,8 @@ const EN = {
   "✕ Zavřít": "✕ Close",
   "Celkově": "Overall",
   "Po kategoriích": "By category",
+  "Jak zobrazit prezentaci?": "How should the presentation be displayed?",
+  "Po kategoriích (samostatné pořadí pro každou kategorii)": "By category (separate ranking for each category)",
   "Zatím žádné výsledky - vyplň Zápis.": "No results yet - fill in Scoring.",
 
   // Item sheets (položkové listy)

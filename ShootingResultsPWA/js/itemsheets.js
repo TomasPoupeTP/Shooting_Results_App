@@ -79,7 +79,7 @@ function buildSlots(list, roundSizes, extraPages = 0) {
     for (let j = 0; j < pr; j++) {
       if (j < size && ridx < real.length) {
         const d = real[ridx++];
-        block.push({ start: String(d.start_num ?? ridx), name: `${d.surname || ""} ${d.name || ""}`.trim(), empty: false });
+        block.push({ start: String(d.start_num ?? ridx), name: `${d.surname || ""} ${d.name || ""}`.trim(), category: d.category || "", empty: false });
       } else {
         block.push(makeEmpty());
       }
@@ -195,6 +195,7 @@ function finaleGroupSlots(finalists, order) {
   const slots = list.map((d, i) => ({
     start: String(i + 1),
     name: `${d.surname || ""} ${d.name || ""}`.trim(),
+    category: d.category || "",
     empty: false,
   }));
   while (slots.length < 6) slots.push({ start: String(slots.length + 1), name: "", empty: true });
