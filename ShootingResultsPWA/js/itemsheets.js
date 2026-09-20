@@ -62,6 +62,18 @@ function startNum(d) {
   return Number.isFinite(v) ? v : Number.MAX_SAFE_INTEGER;
 }
 
+/** Kategorie se přiřazuje až v Zápisu, takže Los (store.lotteryList) ji sám
+ * o sobě nemá. Když se položkové listy generují z Losu, dohledá se kategorie
+ * podle startovního čísla v aktuálním Zápisu (store.shootersData), pokud tam
+ * už mezitím byla vyplněná. */
+function categoryFor(d) {
+  if (d.category) return d.category;
+  const sn = String(d.start_num ?? "").trim();
+  if (!sn) return "";
+  const match = store.shootersData.find((s) => String(s.start_num ?? "").trim() === sn);
+  return (match && match.category) || "";
+}
+
 /** Rozdělí střelce (dle startovního čísla) do skupin. Každá skupina má vždy
  * min. PAGE_ROWS míst - chybějící doplní prázdnými buňkami s pokračujícím
  * startovním číslem pro pozdější ruční dopsání náhradníků. */
@@ -79,7 +91,7 @@ function buildSlots(list, roundSizes, extraPages = 0) {
     for (let j = 0; j < pr; j++) {
       if (j < size && ridx < real.length) {
         const d = real[ridx++];
-        block.push({ start: String(d.start_num ?? ridx), name: `${d.surname || ""} ${d.name || ""}`.trim(), category: d.category || "", empty: false });
+        block.push({ start: String(d.start_num ?? ridx), name: `${d.surname || ""} ${d.name || ""}`.trim(), category: categoryFor(d), empty: false });
       } else {
         block.push(makeEmpty());
       }
