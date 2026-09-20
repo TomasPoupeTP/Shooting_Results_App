@@ -12,7 +12,7 @@
 // a spustí se auto-reload z main.js. Nová session dostane aktuální obsah vždy
 // (network-first), ale bez bumpnutí verze by u NEZAVŘENÉ karty appka mohla
 // zůstat na starém JS/CSS až do dalšího ručního reloadu.
-const CACHE_NAME = "shooting-results-pwa-v9";
+const CACHE_NAME = "shooting-results-pwa-v10";
 
 const ASSETS = [
   "./",
@@ -38,6 +38,7 @@ const ASSETS = [
   "js/views/competitions.js",
   "js/views/appsettings.js",
   "js/views/help.js",
+  "js/views/desktop.js",
   "vendor/jspdf.umd.min.js",
   "vendor/jspdf.plugin.autotable.min.js",
   "vendor/DejaVuSans-normal.js",

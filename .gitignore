@@ -20,3 +20,8 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Desktop (Electron) build
+desktop/node_modules/
+desktop/app/
+desktop/dist/

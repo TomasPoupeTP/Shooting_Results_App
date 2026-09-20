@@ -1,6 +1,6 @@
 import { store } from "../state.js";
 import { el } from "../dom.js";
-import { navigate } from "../main.js";
+import { navigate, isElectron } from "../main.js";
 import { t } from "../i18n.js";
 
 export function openMenu() {
@@ -28,6 +28,10 @@ export function openMenu() {
     el("button", { class: "sheet-btn", onclick: () => go("help") }, [
       el("span", { class: "icon", text: "ℹ️" }),
       el("span", {}, t("Nápověda a o aplikaci")),
+    ]),
+    isElectron ? null : el("button", { class: "sheet-btn", onclick: () => go("desktop") }, [
+      el("span", { class: "icon", text: "🖥️" }),
+      el("span", {}, t("Desktop aplikace pro Win")),
     ]),
   ]);
 

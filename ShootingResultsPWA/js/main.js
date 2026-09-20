@@ -9,7 +9,13 @@ import { renderFinale } from "./views/finale.js";
 import { renderCompetitions } from "./views/competitions.js";
 import { renderAppSettings } from "./views/appsettings.js";
 import { renderHelp } from "./views/help.js";
+import { renderDesktop } from "./views/desktop.js";
 import { openMenu } from "./views/menu.js";
+
+// Appka běží buď jako PWA v prohlížeči, nebo zabalená v Electronu jako
+// desktopová offline verze pro Windows - podle toho se liší chování
+// service workeru a nabídka stažení desktop appky v menu Více.
+export const isElectron = typeof navigator !== "undefined" && /Electron/i.test(navigator.userAgent || "");
 
 const app = document.getElementById("app");
 const tabbar = document.getElementById("tabbar");
@@ -23,10 +29,11 @@ const VIEWS = {
   competitions: renderCompetitions,
   appsettings: renderAppSettings,
   help: renderHelp,
+  desktop: renderDesktop,
 };
 
 // Zobrazení dostupné z tabu "Více" (menu) - tab se u nich zvýrazní jako aktivní.
-const MORE_VIEWS = new Set(["competitions", "appsettings", "help"]);
+const MORE_VIEWS = new Set(["competitions", "appsettings", "help", "desktop"]);
 
 // Pořadí a popisky záložek. Postupně se odemykají (viz store.isTabUnlocked) -
 // appka na začátku ukazuje jen "Soutěž" a "Více".
@@ -87,7 +94,10 @@ if (window.matchMedia) {
   });
 }
 
-if ("serviceWorker" in navigator) {
+// V desktopové (Electron) verzi appka běží čistě lokálně a service worker
+// (offline cache přes HTTP) tam nemá smysl - navíc appka sama sebe
+// nepatchuje síťově, takže registrace by jen zbytečně selhávala.
+if (!isElectron && "serviceWorker" in navigator) {
   // Když nová verze service workeru převezme kontrolu (po aktualizaci aplikace),
   // stránka se sama jednou obnoví - jinak by běžela dál na starém, už
   // stažením nahrazeném JS kódu až do dalšího ručního refreshe.

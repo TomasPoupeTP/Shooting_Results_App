@@ -1,0 +1,41 @@
+{
+  "name": "shooting-results-desktop",
+  "version": "1.0.0",
+  "description": "Shooting Results - desktopová (offline) verze PWA appky pro Windows",
+  "author": "Tomáš Poupě",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "build:win": "electron-builder --win nsis --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "cz.poupe.shootingresults",
+    "productName": "Shooting Results",
+    "copyright": "© 2026 Tomáš Poupě",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "icon.png",
+      "app/**/*"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "ShootingResults-Setup.exe",
+      "shortcutName": "Shooting Results",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

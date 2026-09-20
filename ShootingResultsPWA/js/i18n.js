@@ -243,6 +243,18 @@ const EN = {
   "Od 1 – nejlepší na start č. 1": "From 1 – best shooter on start no. 1",
   "Od 6 – nejhorší ze šestice na start č. 1 (pozpátku)": "From 6 – worst of the group on start no. 1 (reversed)",
   "PDF položkového listu finále vygenerováno ✔": "Final score sheet PDF generated ✔",
+
+  // Desktop app download (menu.js / desktop.js)
+  "Desktop aplikace pro Win": "Desktop app for Windows",
+  "🖥️ Desktop aplikace pro Windows": "🖥️ Desktop app for Windows",
+  "Appka jde nainstalovat i jako samostatná desktopová (offline) aplikace pro Windows - žádný prohlížeč ani internet během používání není potřeba.":
+    "The app can also be installed as a standalone desktop (offline) application for Windows - no browser or internet connection is needed while using it.",
+  "Odkaz vždy vede na nejnovější sestavenou verzi (automaticky se aktualizuje při každém nasazení).":
+    "The link always points to the latest built version (updated automatically with every deploy).",
+  "⬇️ Stáhnout ShootingResults-Setup.exe": "⬇️ Download ShootingResults-Setup.exe",
+  "Stránka verze na GitHubu": "Release page on GitHub",
+  "Po stažení spusť instalátor a postupuj podle průvodce. Windows může u nepodepsané appky zobrazit upozornění \"Neznámý vydavatel\" - to je normální, stačí potvrdit spuštění.":
+    "After downloading, run the installer and follow the wizard. Windows may show an \"Unknown publisher\" warning for an unsigned app - that's normal, just confirm you want to run it.",
 };
 
 export function t(cs) {

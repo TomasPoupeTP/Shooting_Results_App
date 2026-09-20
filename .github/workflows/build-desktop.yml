@@ -1,0 +1,57 @@
+name: Build Windows Desktop App
+
+on:
+  push:
+    branches: [pwa-app]
+    paths:
+      - "ShootingResultsPWA/**"
+      - "desktop/**"
+      - ".github/workflows/build-desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-desktop
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Zkopírovat PWA appku do desktop/app
+        shell: pwsh
+        run: Copy-Item -Recurse -Force ShootingResultsPWA desktop/app
+
+      - name: Nainstalovat závislosti
+        working-directory: desktop
+        run: npm install
+
+      - name: Sestavit Windows instalátor (.exe)
+        working-directory: desktop
+        run: npm run build:win
+
+      - name: Zjistit verzi (git hash)
+        id: ver
+        shell: bash
+        run: echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Publikovat/aktualizovat GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-latest
+          name: "Shooting Results - Desktop (Windows)"
+          body: |
+            Automaticky sestavená desktopová (offline) verze appky Shooting Results pro Windows.
+
+            Odpovídá commitu `${{ steps.ver.outputs.sha }}` na větvi `pwa-app`.
+            Stáhni si `ShootingResults-Setup.exe` a nainstaluj - appka pak funguje i bez internetu.
+          make_latest: true
+          files: desktop/dist/ShootingResults-Setup.exe
