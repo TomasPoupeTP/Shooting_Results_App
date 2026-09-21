@@ -8,6 +8,7 @@
 
 const STORAGE_KEY = "shootingResultsPWA.v2";
 const OLD_STORAGE_KEY = "shootingResultsPWA.competition.v1"; // v1 formát (jedna soutěž) - kvůli migraci
+const BACKUP_MIN_INTERVAL_MS = 5 * 60 * 1000; // min. rozestup mezi automatickými zálohami (desktop appka)
 
 export function num(v, def = 0) {
   const n = parseFloat(v);
@@ -338,6 +339,19 @@ export class Store {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.toJSON()));
     } catch (e) { console.warn("Uložení selhalo:", e); }
+    this._maybeBackup();
+  }
+
+  /** V desktopové (Electron) appce při ukládání (throttlovaně, ať se
+   * nezapisuje soubor na každé písmenko) pošle celý stav hlavnímu procesu,
+   * který ho uloží jako zálohu do Dokumentů - viz desktop/main.js. V PWA
+   * (prohlížeči) window.desktopAPI neexistuje, takže se to jen tiše přeskočí. */
+  _maybeBackup() {
+    if (typeof window === "undefined" || !window.desktopAPI || !window.desktopAPI.backupData) return;
+    const now = Date.now();
+    if (this._lastBackupAt && now - this._lastBackupAt < BACKUP_MIN_INTERVAL_MS) return;
+    this._lastBackupAt = now;
+    try { window.desktopAPI.backupData(JSON.stringify(this.toJSON())); } catch (e) { /* ignorovat */ }
   }
 
   load() {

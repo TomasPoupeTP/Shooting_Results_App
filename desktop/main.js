@@ -154,6 +154,42 @@ function openPresentationWindow() {
 
 ipcMain.handle("open-presentation-window", () => openPresentationWindow());
 
+// ── Automatická záloha dat ─────────────────────────────────────────────────
+// Appka (renderer) posílá při ukládání svůj celý stav (všechny soutěže) sem -
+// hlavní proces ho throttlovaně (viz state.js) zapíše jako časovaný JSON do
+// Dokumentů, ať uživatel ví, kde zálohy hledat, a nemusí spoléhat jen na
+// localStorage. Staré zálohy se průběžně mažou, ať složka neroste do nekonečna.
+const BACKUP_KEEP_COUNT = 30;
+
+function backupDir() {
+  return path.join(app.getPath("documents"), "Shooting Results", "Zálohy");
+}
+
+function pruneOldBackups(dir) {
+  let files;
+  try {
+    files = fs.readdirSync(dir).filter((f) => f.startsWith("zaloha-") && f.endsWith(".json"));
+  } catch (e) { return; }
+  if (files.length <= BACKUP_KEEP_COUNT) return;
+  files.sort(); // jména mají ISO-podobné časové razítko, řadí se chronologicky
+  const toDelete = files.slice(0, files.length - BACKUP_KEEP_COUNT);
+  for (const f of toDelete) {
+    try { fs.unlinkSync(path.join(dir, f)); } catch (e) { /* ignorovat */ }
+  }
+}
+
+ipcMain.handle("backup-data", (event, json) => {
+  try {
+    const dir = backupDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    fs.writeFileSync(path.join(dir, `zaloha-${stamp}.json`), json, "utf8");
+    pruneOldBackups(dir);
+  } catch (e) {
+    console.warn("Automatická záloha selhala:", e.message);
+  }
+});
+
 // ── Kontrola aktualizací (jen když je PC online - jinak potichu selže) ────
 function httpGetJson(url, redirects = 5) {
   return new Promise((resolve, reject) => {

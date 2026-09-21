@@ -72,6 +72,23 @@ export function renderEntry(root) {
     table.append(el("thead", {}, headRow));
 
     const tbody = el("tbody");
+    // grid[r][i] = { scoreInput, faultInput } - umožňuje Enter (a Shift+Enter)
+    // přeskočit rovnou do stejného sloupce v dalším/předchozím řádku, aby šlo
+    // psát skóre pro celou položku "postupem" bez sahání na myš.
+    const grid = [];
+    function focusCell(r, i, field) {
+      const cell = grid[r] && grid[r][i];
+      if (!cell) return false;
+      const target = field === "score" ? cell.scoreInput : cell.faultInput;
+      target.focus();
+      target.select();
+      return true;
+    }
+    function handleScoreKeydown(e, r, i, field) {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      focusCell(e.shiftKey ? r - 1 : r + 1, i, field);
+    }
     store.shootersData.forEach((row, r) => {
       const tr = el("tr");
       tr.append(el("td", { class: "muted", text: String(r + 1) }));
@@ -120,6 +137,8 @@ export function renderEntry(root) {
 
       const sumCell = el("td", { class: "gold", text: fmtTotal(row) });
 
+      const rowInputs = [];
+      grid[r] = rowInputs;
       for (let i = 1; i <= ni; i++) {
         const scoreKey = `item${i}_score`, faultKey = `item${i}_fault`;
         const scoreInput = el("input", {
@@ -131,12 +150,15 @@ export function renderEntry(root) {
             sumCell.textContent = fmtTotal(row);
           },
           onblur: () => store.save(),
+          onkeydown: (e) => handleScoreKeydown(e, r, i, "score"),
         });
         const faultInput = el("input", {
           type: "number", value: row[faultKey] ?? "", style: "width:60px",
           oninput: (e) => { row[faultKey] = e.target.value; },
           onblur: () => store.save(),
+          onkeydown: (e) => handleScoreKeydown(e, r, i, "fault"),
         });
+        rowInputs[i] = { scoreInput, faultInput };
         tr.append(el("td", {}, scoreInput), el("td", { class: "muted" }, faultInput));
       }
 

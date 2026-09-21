@@ -1,6 +1,6 @@
 import { store } from "../state.js";
 import { el } from "../dom.js";
-import { navigate } from "../main.js";
+import { navigate, isElectron } from "../main.js";
 import { t } from "../i18n.js";
 
 function sortExplanationHtml() {
@@ -41,6 +41,7 @@ function helpBodyHtml() {
       <h3>💾 Data storage</h3>
       <p>The app has no server - everything is stored only on this phone/browser (localStorage). The app can hold multiple competitions at once (switch via the menu <em>More → Switch competitions</em>). To back up or transfer to another device, use <em>Export JSON</em> / <em>Import JSON</em> in the competition settings.</p>
       <p>The app also works <strong>offline</strong> (including PDF generation) thanks to a service worker - after the first load it can be used even without a signal.</p>
+      ${isElectron ? `<p>The desktop app also automatically saves a timestamped backup (every few minutes, whenever something changes) to <code>Documents\\Shooting Results\\Zálohy</code> - the last 30 backups are kept.</p>` : ""}
 
       <h3>© Copyright</h3>
       <p>Shooting Results - PWA version.<br>© 2026 Tomáš Poupě. All rights reserved.</p>
@@ -63,6 +64,7 @@ function helpBodyHtml() {
     <h3>💾 Ukládání dat</h3>
     <p>Aplikace nemá server - všechno se ukládá jen v tomto telefonu/prohlížeči (localStorage). Aplikace umí držet víc soutěží najednou (přepínání v menu <em>Více → Přepnout soutěže</em>). Pro zálohu nebo přenos na jiné zařízení použij <em>Export JSON</em> / <em>Import JSON</em> v nastavení soutěže.</p>
     <p>Aplikace funguje i <strong>offline</strong> (včetně generování PDF) díky service workeru - po prvním načtení se dá používat i bez signálu.</p>
+    ${isElectron ? `<p>Desktopová appka navíc automaticky (jednou za pár minut, kdykoliv se něco změní) ukládá časovanou zálohu do <code>Dokumenty\\Shooting Results\\Zálohy</code> - posledních 30 záloh zůstává zachováno.</p>` : ""}
 
     <h3>© Autorská práva</h3>
     <p>Shooting Results - PWA verze.<br>© 2026 Tomáš Poupě. Všechna práva vyhrazena.</p>
