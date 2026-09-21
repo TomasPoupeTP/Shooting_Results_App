@@ -114,6 +114,10 @@ function openPresentationWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Prezentace typicky běží na druhém monitoru bez focusu (uživatel
+      // pracuje v hlavním okně) - bez tohohle Chromium škrtí časovače na
+      // nezaostřených oknech a automatické scrollování by prakticky stálo.
+      backgroundThrottling: false,
     },
   };
 

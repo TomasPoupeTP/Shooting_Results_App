@@ -63,6 +63,12 @@ export async function openPresentation({ standalone = false } = {}) {
       if (inner.scrollHeight <= list.clientHeight) return;
       let phase = "down"; // "down" | "pause-bottom" | "up" | "pause-top"
       let pauseUntil = 0;
+      // Pozice se drží jako vlastní (přesný) float mimo DOM - některé
+      // Chromium/Electron sestavení totiž při zápisu do scrollTop desetinnou
+      // část neukládají (zaokrouhlují dolů), takže "scrollTop += 0.6" by se
+      // donekonečna zaokrouhlilo zpátky na stejné celé číslo a scroll by
+      // vůbec nepostupoval.
+      let pos = list.scrollTop;
       scrollTimer = setInterval(() => {
         const now = Date.now();
         if (phase === "pause-bottom" || phase === "pause-top") {
@@ -71,15 +77,15 @@ export async function openPresentation({ standalone = false } = {}) {
           return;
         }
         const dir = phase === "down" ? 1 : -1;
-        list.scrollTop += dir * 0.6;
-        const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 1;
-        const atTop = list.scrollTop <= 1;
+        const maxScroll = list.scrollHeight - list.clientHeight;
+        pos = Math.min(maxScroll, Math.max(0, pos + dir * 0.6));
+        list.scrollTop = Math.round(pos);
+        const atBottom = pos >= maxScroll - 0.5;
+        const atTop = pos <= 0.5;
         if (dir === 1 && atBottom) {
-          list.scrollTop = list.scrollHeight - list.clientHeight;
           phase = "pause-bottom";
           pauseUntil = now + PAUSE_MS;
         } else if (dir === -1 && atTop) {
-          list.scrollTop = 0;
           phase = "pause-top";
           pauseUntil = now + PAUSE_MS;
         }
