@@ -106,13 +106,8 @@ function openPresentationWindow() {
   const displays = screen.getAllDisplays();
   const primary = screen.getPrimaryDisplay();
   const secondary = displays.find((d) => d.id !== primary.id);
-  const target = secondary || primary;
 
-  presentationWindow = new BrowserWindow({
-    x: target.bounds.x,
-    y: target.bounds.y,
-    width: target.bounds.width,
-    height: target.bounds.height,
+  const winOptions = {
     autoHideMenuBar: true,
     icon: path.join(__dirname, "icon.png"),
     webPreferences: {
@@ -120,10 +115,36 @@ function openPresentationWindow() {
       nodeIntegration: false,
       sandbox: true,
     },
-  });
+  };
+
+  if (secondary) {
+    // Druhý displej nalezen - okno na něj rovnou umístíme a přepneme do
+    // fullscreenu (typický případ: projektor/TV na střelnici).
+    Object.assign(winOptions, {
+      x: secondary.bounds.x,
+      y: secondary.bounds.y,
+      width: secondary.bounds.width,
+      height: secondary.bounds.height,
+    });
+  } else {
+    // Bez druhého displeje NESMÍ okno vzniknout přesně na místě hlavního
+    // okna (to by vypadalo, jako by se po kliknutí nic nestalo) - otevře se
+    // tedy jako normální posunuté okno, které jde ručně přetáhnout kamkoli
+    // (třeba na externí monitor připojený až později).
+    const mainBounds = mainWindow ? mainWindow.getBounds() : null;
+    Object.assign(winOptions, {
+      x: mainBounds ? mainBounds.x + 60 : undefined,
+      y: mainBounds ? mainBounds.y + 60 : undefined,
+      width: 1000,
+      height: 700,
+    });
+  }
+
+  presentationWindow = new BrowserWindow(winOptions);
   presentationWindow.setMenuBarVisibility(false);
   presentationWindow.loadURL(`http://127.0.0.1:${port}/index.html?presentation=1`);
   if (secondary) presentationWindow.setFullScreen(true);
+  presentationWindow.focus();
   presentationWindow.on("closed", () => { presentationWindow = null; });
 }
 
