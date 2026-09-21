@@ -97,6 +97,7 @@ export async function openPresentation({ standalone = false } = {}) {
     const scores = Array.from({ length: ni }, (_, i) => el("div", { class: "score", text: `P${i + 1}` }));
     return el("div", { class: "pres-row pres-header" }, [
       el("div", { class: "rank" }),
+      el("div", { class: "startnum", text: t("St.č.") }),
       el("div", { class: "name" }),
       el("div", { class: "scores" }, scores),
       el("div", { class: "total", text: t("Celkem") }),
@@ -115,6 +116,7 @@ export async function openPresentation({ standalone = false } = {}) {
     ]);
     return el("div", { class: `pres-row ${isTop6 ? "top6" : ""}` }, [
       el("div", { class: "rank", text: String(idx + 1) + (isTie ? "*" : "") }),
+      el("div", { class: "startnum", text: d.start_num !== undefined && d.start_num !== null && String(d.start_num).trim() !== "" ? String(d.start_num) : "–" }),
       nameEl,
       el("div", { class: "scores" }, scores),
       el("div", { class: "total", text: Number.isInteger(total) ? String(total) : String(total) }),
@@ -131,7 +133,7 @@ export async function openPresentation({ standalone = false } = {}) {
     const groups = computeGroups(byCategory);
     const snapshot = JSON.stringify(groups.map((g) => [
       g.category,
-      g.items.map((d) => [d.surname, d.name, d.category, d.total, ...Array.from({ length: ni }, (_, i) => d[`item${i + 1}_score`])]),
+      g.items.map((d) => [d.surname, d.name, d.category, d.start_num, d.total, ...Array.from({ length: ni }, (_, i) => d[`item${i + 1}_score`])]),
     ]));
     // Pokud se data nezměnila, nepřekreslovat (a nepřerušovat probíhající scroll).
     if (snapshot === lastSnapshot) return;

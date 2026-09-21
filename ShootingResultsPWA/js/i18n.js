@@ -209,6 +209,7 @@ const EN = {
   ") - alespoň jednou": ") - at least once",
 
   // Presentation
+  "St.č.": "Start #",
   "🖥 Prezentace": "🖥 Presentation",
   "✕ Zavřít": "✕ Close",
   "Celkově": "Overall",

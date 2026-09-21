@@ -305,6 +305,8 @@ table select { padding: 4px; font-size: 12px; }
 .presentation .pres-row.top6 { background: var(--top6-bg); }
 .presentation .pres-row .rank { width: 30px; font-weight: 700; color: var(--text-muted); }
 .presentation .pres-row.top6 .rank { color: var(--gold); }
+.presentation .pres-row .startnum { width: 54px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+.presentation .pres-row.pres-header .startnum { color: var(--text-muted); font-weight: 700; }
 .presentation .pres-row .name { flex: 1; }
 .presentation .pres-row .name .cat-badge {
   margin-left: 10px; color: var(--accent); font-size: 15px; font-weight: 700;
