@@ -172,7 +172,7 @@ function drawShooterSheet(doc, startY, slot, ni, mx, colWidths, marginL, marginR
   const ncols = mx + 3;
   const banner = slot.empty
     ? `St. č. ${slot.start}   ·   ………………………………………………………`
-    : `St. č. ${slot.start}   ·   ${slot.name}${slot.category ? "   ·   " + slot.category : ""}`;
+    : `St. č. ${slot.start}   ·   ${slot.name}${slot.category ? "   ·   " + slot.category : ""}${slot.qualification !== undefined ? "   ·   Kvalifikace: " + slot.qualification : ""}`;
 
   const body = [];
   body.push([{

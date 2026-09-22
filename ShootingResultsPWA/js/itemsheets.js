@@ -2,7 +2,7 @@
 // generované ze seznamu střelců (Los nebo Zápis) a z finalistů (Finále).
 // Rozdělení do skupin/algoritmus rozestavění 1:1 podle shooting_results_app.py
 // (_round_sizes/_build_slots), doplněné o nový "vyvážený" auto-režim.
-import { store } from "./state.js";
+import { store, num } from "./state.js";
 import { el } from "./dom.js";
 import { t } from "./i18n.js";
 import { exportItemSheetsPdf } from "./pdf.js";
@@ -208,6 +208,7 @@ function finaleGroupSlots(finalists, order) {
     start: String(i + 1),
     name: `${d.surname || ""} ${d.name || ""}`.trim(),
     category: d.category || "",
+    qualification: num(d.total, 0),
     empty: false,
   }));
   while (slots.length < 6) slots.push({ start: String(slots.length + 1), name: "", empty: true });
