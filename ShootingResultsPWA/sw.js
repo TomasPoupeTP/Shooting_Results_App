@@ -12,7 +12,7 @@
 // a spustí se auto-reload z main.js. Nová session dostane aktuální obsah vždy
 // (network-first), ale bez bumpnutí verze by u NEZAVŘENÉ karty appka mohla
 // zůstat na starém JS/CSS až do dalšího ručního reloadu.
-const CACHE_NAME = "shooting-results-pwa-v14";
+const CACHE_NAME = "shooting-results-pwa-v15";
 
 const ASSETS = [
   "./",
@@ -27,6 +27,7 @@ const ASSETS = [
   "js/i18n.js",
   "js/dialog.js",
   "js/itemsheets.js",
+  "js/bibnumbers.js",
   "js/views/home.js",
   "js/views/lottery.js",
   "js/views/entry.js",

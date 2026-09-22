@@ -4,6 +4,7 @@ import { navigate, toast } from "../main.js";
 import { exportLotteryPdf } from "../pdf.js";
 import { t } from "../i18n.js";
 import { openItemSheetsDialog } from "../itemsheets.js";
+import { openBibNumbersDialog } from "../bibnumbers.js";
 
 export function renderLottery(root) {
   const topbar = el("div", { class: "topbar" }, [
@@ -75,6 +76,10 @@ export function renderLottery(root) {
         if (!store.lotteryList.length) { toast("Nejdřív přidej střelce"); return; }
         openItemSheetsDialog(store.lotteryList);
       },
+    }),
+    el("button", {
+      class: "btn-ghost", text: t("🎽 Startovní čísla"),
+      onclick: () => openBibNumbersDialog(store.lotteryList),
     }),
   ]);
 

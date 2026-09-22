@@ -237,6 +237,72 @@ export function exportItemSheetsPdf(rounds, ni, mx, titleForRound, filenameKind)
   doc.save(pdfFileName(filenameKind));
 }
 
+// ── Startovní čísla na záda ──────────────────────────────────────────────
+// Jedna strana A4 na výšku na střelce, velké číslo přes většinu stránky,
+// volitelně doplněné o jméno/kategorii/soutěž/disciplínu/datum/střelnici.
+function fitFontSizeForWidth(doc, text, targetWidthMm, maxSize = 380) {
+  doc.setFontSize(100);
+  const w100 = doc.getTextWidth(text) || 1;
+  const size = (targetWidthMm / w100) * 100;
+  return Math.max(24, Math.min(size, maxSize));
+}
+
+export function exportBibNumbersPdf(list, opts) {
+  const doc = newDoc("portrait");
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const cx = pageW / 2;
+  const marginX = 14;
+
+  list.forEach((d, idx) => {
+    if (idx > 0) doc.addPage();
+    doc.setTextColor(0);
+    let y = 20;
+
+    if (opts.competition && store.competitionName) {
+      doc.setFont(FONT, "bold"); doc.setFontSize(18);
+      doc.text(store.competitionName, cx, y, { align: "center" });
+      y += 9;
+    }
+    const metaParts = [];
+    if (opts.discipline && store.disciplineText()) metaParts.push(store.disciplineText());
+    if (opts.date) {
+      const dateStr = store.eventDate
+        ? new Date(store.eventDate + "T00:00:00").toLocaleDateString("cs-CZ")
+        : new Date().toLocaleDateString("cs-CZ");
+      metaParts.push(dateStr);
+    }
+    if (opts.venue && store.venue) metaParts.push(store.venue);
+    if (metaParts.length) {
+      doc.setFont(FONT, "normal"); doc.setFontSize(12);
+      doc.text(metaParts.join("   •   "), cx, y, { align: "center" });
+    }
+
+    const numberText = String(d.start_num ?? "").trim() || "?";
+    doc.setFont(FONT, "bold");
+    const fitted = fitFontSizeForWidth(doc, numberText, pageW - marginX * 2);
+    doc.setFontSize(fitted);
+    const numBaselineY = pageH * 0.6;
+    doc.text(numberText, cx, numBaselineY, { align: "center" });
+
+    let by = numBaselineY + 22;
+    if (opts.name) {
+      const fullName = `${d.surname || ""} ${d.name || ""}`.trim();
+      if (fullName) {
+        doc.setFont(FONT, "bold"); doc.setFontSize(22);
+        doc.text(fullName, cx, by, { align: "center" });
+        by += 11;
+      }
+    }
+    if (opts.category && d.category) {
+      doc.setFont(FONT, "normal"); doc.setFontSize(15);
+      doc.text(d.category, cx, by, { align: "center" });
+    }
+  });
+
+  doc.save(pdfFileName("startovni_cisla"));
+}
+
 function pdfFileName(kind) {
   const safe = (store.competitionName || "soutez").replace(/[^\p{L}\p{N}_-]+/gu, "_");
   const date = new Date().toISOString().slice(0, 10);

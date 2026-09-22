@@ -282,6 +282,15 @@ table select { padding: 4px; font-size: 12px; }
 .sheet-btn:last-child { border-bottom: none; }
 .sheet-btn .icon { font-size: 18px; width: 22px; text-align: center; }
 
+/* Startovní čísla - živý náhled v dialogu */
+.bib-preview {
+  border: 2px dashed var(--border); border-radius: 12px; padding: 14px 10px;
+  text-align: center; margin: 8px 0; background: var(--bg-input);
+}
+.bib-preview-top { color: var(--text-muted); font-size: 12px; min-height: 14px; }
+.bib-preview-num { font-size: 64px; font-weight: 800; color: var(--accent); line-height: 1.1; }
+.bib-preview-bottom { color: var(--text-primary); font-size: 14px; margin-top: 6px; min-height: 16px; font-weight: 600; }
+
 /* Presentation mode */
 .presentation {
   position: fixed; inset: 0;

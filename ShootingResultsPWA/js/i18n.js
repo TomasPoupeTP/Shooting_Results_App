@@ -256,6 +256,16 @@ const EN = {
   "Stránka verze na GitHubu": "Release page on GitHub",
   "Po stažení spusť instalátor a postupuj podle průvodce. Windows může u nepodepsané appky zobrazit upozornění \"Neznámý vydavatel\" - to je normální, stačí potvrdit spuštění.":
     "After downloading, run the installer and follow the wizard. Windows may show an \"Unknown publisher\" warning for an unsigned app - that's normal, just confirm you want to run it.",
+
+  // Startovní čísla (bib numbers)
+  "🎽 Startovní čísla": "🎽 Bib numbers",
+  "Co ještě přidat k číslu:": "What else to add next to the number:",
+  "Jméno a příjmení": "Full name",
+  "Kategorie střelce": "Shooter's category",
+  "Datum": "Date",
+  "Střelnice": "Shooting range",
+  "🖨 Generovat a stáhnout PDF": "🖨 Generate and download PDF",
+  "PDF startovních čísel vygenerováno ✔": "Bib numbers PDF generated ✔",
 };
 
 export function t(cs) {
