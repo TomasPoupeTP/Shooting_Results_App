@@ -61,6 +61,8 @@ function defaultAppSettings() {
     language: "cs",                // "cs" | "en"
     customDisciplines: [],        // string[]
     customCategories: [],         // {name, short}[]
+    hiddenDisciplines: [],        // string[] - vestavěné disciplíny, které si uživatel skryl
+    hiddenCategories: [],         // string[] - vestavěné kategorie, které si uživatel skryl
     sortReverseDirection: false,  // false = položky se procházejí od poslední k 1. (desktop chování)
     sortBlocks: defaultSortBlocks(),
     defaultDiscipline: "Americký TRAP",
@@ -274,6 +276,29 @@ export class Store {
 
   removeCustomCategory(name) {
     this.app.customCategories = this.app.customCategories.filter((c) => c.name !== name);
+    this.save();
+  }
+
+  // Vestavěné (výchozí) disciplíny/kategorie nejdou smazat natvrdo (jsou
+  // pevná sada sdílená se starou desktop verzí) - dají se ale skrýt z výběru,
+  // a kdykoliv zase vrátit zpět.
+  hideDiscipline(name) {
+    if (!this.app.hiddenDisciplines.includes(name)) this.app.hiddenDisciplines.push(name);
+    this.save();
+  }
+
+  unhideDiscipline(name) {
+    this.app.hiddenDisciplines = this.app.hiddenDisciplines.filter((d) => d !== name);
+    this.save();
+  }
+
+  hideCategory(name) {
+    if (!this.app.hiddenCategories.includes(name)) this.app.hiddenCategories.push(name);
+    this.save();
+  }
+
+  unhideCategory(name) {
+    this.app.hiddenCategories = this.app.hiddenCategories.filter((c) => c !== name);
     this.save();
   }
 

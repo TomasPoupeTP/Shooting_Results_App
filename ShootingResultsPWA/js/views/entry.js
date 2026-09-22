@@ -132,7 +132,7 @@ export function renderEntry(root) {
         },
       }, [
         el("option", { value: "", selected: !row.category, text: "—" }),
-        ...allCategories().map((c) => el("option", { value: c, selected: c === (row.category || ""), text: c })),
+        ...allCategories(row.category).map((c) => el("option", { value: c, selected: c === (row.category || ""), text: c })),
         el("option", { value: ADD_CUSTOM, text: t("+ Přidat vlastní…") }),
       ]);
       tr.append(el("td", {}, catSelect));

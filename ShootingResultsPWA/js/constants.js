@@ -22,14 +22,23 @@ export function catShort(cat) {
   return cat || "";
 }
 
-/** Základní + uživatelem přidané kategorie (bez prázdné volby). */
-export function allCategories() {
-  const base = CATEGORIES.filter((c) => c);
+/** Základní (bez skrytých) + uživatelem přidané kategorie (bez prázdné volby).
+ * `currentValue` (už dřív vybraná/uložená kategorie) se do seznamu vždy
+ * zahrne, i kdyby mezitím byla skrytá - jinak by starým záznamům se skrytou
+ * kategorií zmizela z <select> a tichem by se přepsaly na první možnost. */
+export function allCategories(currentValue) {
+  const base = CATEGORIES.filter((c) => c && (!store.app.hiddenCategories.includes(c) || c === currentValue));
   const custom = store.app.customCategories.map((c) => c.name);
-  return [...base, ...custom];
+  const list = [...base, ...custom];
+  if (currentValue && !list.includes(currentValue)) list.push(currentValue);
+  return list;
 }
 
-/** Základní + uživatelem přidané disciplíny. */
-export function allDisciplines() {
-  return [...DISCIPLINES, ...store.app.customDisciplines];
+/** Základní (bez skrytých) + uživatelem přidané disciplíny - viz poznámka
+ * u allCategories() k `currentValue`. */
+export function allDisciplines(currentValue) {
+  const base = DISCIPLINES.filter((d) => !store.app.hiddenDisciplines.includes(d) || d === currentValue);
+  const list = [...base, ...store.app.customDisciplines];
+  if (currentValue && !list.includes(currentValue)) list.push(currentValue);
+  return list;
 }

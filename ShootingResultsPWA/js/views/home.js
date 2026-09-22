@@ -55,7 +55,7 @@ export function renderHome(root) {
         store.save();
       },
     }, [
-      ...allDisciplines().map((d) => el("option", { value: d, selected: d === store.discipline, text: d })),
+      ...allDisciplines(store.discipline).map((d) => el("option", { value: d, selected: d === store.discipline, text: d })),
       el("option", { value: ADD_CUSTOM, text: t("+ Přidat vlastní…") }),
     ]);
   }

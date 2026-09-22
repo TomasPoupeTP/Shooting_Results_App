@@ -1,5 +1,5 @@
 import { store, Store } from "../state.js";
-import { DISCIPLINES, allDisciplines } from "../constants.js";
+import { DISCIPLINES, CATEGORIES, allDisciplines } from "../constants.js";
 import { el, clear } from "../dom.js";
 import { navigate, toast } from "../main.js";
 import { t } from "../i18n.js";
@@ -90,6 +90,32 @@ export function renderAppSettings(root) {
     discListWrap,
   ]);
 
+  // ── Vestavěné disciplíny (jdou jen skrýt z výběru, ne smazat natvrdo) ──
+  const builtinDiscListWrap = el("div", {});
+  function renderBuiltinDiscList() {
+    clear(builtinDiscListWrap);
+    DISCIPLINES.forEach((name) => {
+      const hidden = store.app.hiddenDisciplines.includes(name);
+      builtinDiscListWrap.append(el("div", { class: "list-item", style: hidden ? "opacity:.5" : "" }, [
+        el("div", { class: "main title", text: name }),
+        hidden
+          ? el("button", {
+              class: "btn-ghost btn-sm", text: t("↺ Obnovit"),
+              onclick: () => { store.unhideDiscipline(name); renderBuiltinDiscList(); },
+            })
+          : el("button", {
+              class: "btn-ghost btn-sm", text: "🗑",
+              onclick: () => { store.hideDiscipline(name); renderBuiltinDiscList(); },
+            }),
+      ]));
+    });
+  }
+  renderBuiltinDiscList();
+  const builtinDiscCard = el("div", { class: "card" }, [
+    el("p", { style: "color:var(--text-muted);font-size:12px;margin-bottom:4px", text: t("Skryté se nenabízí ve výběru disciplíny - kdykoliv je můžeš vrátit zpět.") }),
+    builtinDiscListWrap,
+  ]);
+
   // ── Vlastní kategorie ────────────────────────────────────────────────
   const catNameInput = el("input", { type: "text", placeholder: t("Název kategorie") });
   const catShortInput = el("input", { type: "text", placeholder: t("Zkratka (1-3 znaky)"), style: "width:110px" });
@@ -131,6 +157,32 @@ export function renderAppSettings(root) {
       }),
     ]),
     catListWrap,
+  ]);
+
+  // ── Vestavěné kategorie (jdou jen skrýt z výběru, ne smazat natvrdo) ───
+  const builtinCatListWrap = el("div", {});
+  function renderBuiltinCatList() {
+    clear(builtinCatListWrap);
+    CATEGORIES.filter((c) => c).forEach((name) => {
+      const hidden = store.app.hiddenCategories.includes(name);
+      builtinCatListWrap.append(el("div", { class: "list-item", style: hidden ? "opacity:.5" : "" }, [
+        el("div", { class: "main title", text: name }),
+        hidden
+          ? el("button", {
+              class: "btn-ghost btn-sm", text: t("↺ Obnovit"),
+              onclick: () => { store.unhideCategory(name); renderBuiltinCatList(); },
+            })
+          : el("button", {
+              class: "btn-ghost btn-sm", text: "🗑",
+              onclick: () => { store.hideCategory(name); renderBuiltinCatList(); },
+            }),
+      ]));
+    });
+  }
+  renderBuiltinCatList();
+  const builtinCatCard = el("div", { class: "card" }, [
+    el("p", { style: "color:var(--text-muted);font-size:12px;margin-bottom:4px", text: t("Skryté se nenabízí ve výběru kategorie - kdykoliv je můžeš vrátit zpět.") }),
+    builtinCatListWrap,
   ]);
 
   // ── Kritéria řazení při shodě - interaktivní "flow" bloků ────────────
@@ -193,7 +245,7 @@ export function renderAppSettings(root) {
   const sortCard = el("div", { class: "card" }, [sortDirRow, flowWrap, sortPreview]);
 
   // ── Výchozí hodnoty pro nové soutěže ─────────────────────────────────
-  const defDiscInput = el("select", {}, allDisciplines().map((d) =>
+  const defDiscInput = el("select", {}, allDisciplines(store.app.defaultDiscipline).map((d) =>
     el("option", { value: d, selected: d === store.app.defaultDiscipline, text: d })));
   const defMaxInput = el("input", { type: "number", value: store.app.defaultMaxScore, min: "1" });
   const defRefInput = el("input", { type: "text", value: store.app.defaultRefereeName, placeholder: t("Jméno hlavního rozhodčího") });
@@ -227,7 +279,9 @@ export function renderAppSettings(root) {
     el("div", { class: "section-title", text: t("Vzhled") }), themeCard,
     el("div", { class: "section-title", text: t("Jazyk") }), langCard,
     el("div", { class: "section-title", text: t("Vlastní disciplíny") }), discCard,
+    el("div", { class: "section-title", text: t("Vestavěné disciplíny") }), builtinDiscCard,
     el("div", { class: "section-title", text: t("Vlastní kategorie") }), catCard,
+    el("div", { class: "section-title", text: t("Vestavěné kategorie") }), builtinCatCard,
     el("div", { class: "section-title", text: t("Kritéria řazení při shodě") }), sortCard,
     el("div", { class: "section-title", text: t("Výchozí hodnoty pro nové soutěže") }), defaultsCard,
   );
