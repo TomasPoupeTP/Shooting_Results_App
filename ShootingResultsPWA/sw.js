@@ -12,7 +12,7 @@
 // a spustí se auto-reload z main.js. Nová session dostane aktuální obsah vždy
 // (network-first), ale bez bumpnutí verze by u NEZAVŘENÉ karty appka mohla
 // zůstat na starém JS/CSS až do dalšího ručního reloadu.
-const CACHE_NAME = "shooting-results-pwa-v15";
+const CACHE_NAME = "shooting-results-pwa-v16";
 
 const ASSETS = [
   "./",
@@ -66,7 +66,13 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(
-    fetch(event.request)
+    // "cache: no-store" je tu záměrně - bez něj fetch() uvnitř SW klidně
+    // vrátí odpověď z běžné HTTP cache prohlížeče (podle Cache-Control
+    // hlaviček GitHub Pages, řádově minuty), takže appka po nasazení nové
+    // verze ještě chvíli tiše servírovala starý JS, i když se tvářila, že
+    // "network-first" už stáhla čerstvá data. Takhle fetch vždy skutečně
+    // zajde na server.
+    fetch(event.request, { cache: "no-store" })
       .then((resp) => {
         if (resp && resp.ok) {
           const copy = resp.clone();

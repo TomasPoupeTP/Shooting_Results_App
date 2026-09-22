@@ -117,7 +117,12 @@ if (isPresentationWindow) {
       window.location.reload();
     });
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("sw.js").catch(() => {});
+      // updateViaCache: "none" - jinak prohlížeč kontroluje, jestli je sw.js
+      // novější, přes běžnou HTTP cache (GitHub Pages posílá Cache-Control
+      // s několikaminutovou platností) a appka tak po nasazení nové verze
+      // ještě chvíli tiše běžela na staré, i když appka sama vypadala
+      // "aktuálně" (viz version.json, který se natahuje zvlášť s no-store).
+      navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(() => {});
     });
   }
 
